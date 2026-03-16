@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Sensemat Data recorder</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="./static/node_modules/@dls/css/dls.css" />
+  <link rel="stylesheet" href="./static/node_modules/@dls/css/colors/vars-gray-very-dark.css" />
+  <link rel="stylesheet" href="./static/node_modules/@dls/css/colors/vars-accent-pink-bright.css" />
+  <link rel="stylesheet" href="./static/main.css" />
+  <script src="./static/node_modules/smoothie/smoothie.js"></script>
+</head>
+
+<body class="gray-very-dark accent-pink-bright">
+  <div class="spacing-mb-5">
+    <header class="navigation-bar">
+      <div class="left-group">
+        <a class="button quiet no-padding spacing-mr-4">
+          <span class="icon icon-about"></span>
+        </a>
+        <h1 class="app-title">Sensemat Study Data Recorder</h1>
+      </div>
+
+      <div class="right-group" style="margin-right:-0.5rem">
+        <div class="actions">
+          <button class="button quiet">
+            <span class="icon icon-settings"></span>
+          </button>
+        </div>
+      </div>
+
+    </header>
+  </div>
+
+  <div class="main background-primary text-primary text-body">
+    <div class="card ">
+      <div class="content sensematviz">
+        <div id="sensemat_diff_holder">
+          <div class="sensorholder"></div>
+        </div>
+        <div id="sensemat_holder">
+          <div class="sensorholder"></div>
+        </div>
+      </div>
+
+      <footer class="footer spacing-mt-5">
+        <button class="button signal-warning" id="setpoint">
+          <span>Set setpoint</span>
+        </button>
+      </footer>
+    </div>
+
+    <div id="signals">
+      <div class="card spacing-mb-5">
+        <div class="content">
+          <div class="sensorgraphs">
+            <div class="graphholder col-1">
+              <div class="graph">
+                <h5 class="text-h5">S_1_1</h5>
+                <canvas id="s_0_0-head" height="100"></canvas>
+              </div>
+              <div class="graph">
+                <h5 class="text-h5">S_4_4</h5>
+                <canvas id="s_1_1-head" height="100"></canvas>
+              </div>
+              <div class="graph">
+                <h5 class="text-h5">Mean</h5>
+                <canvas id="mean-head" height="100"></canvas>
+              </div>
+              <div class="graph">
+                <h5 class="text-h5">Resp</h5>
+                <canvas id="respNN-head" height="100"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <small>Sync offset: <span id="sync"></span> </small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card spacing-mb-5">
+        <header class="header">
+          <h3 class="title">Data recording</h3>
+        </header>
+        <div class="content text-tertiary">
+          <div id="filename"></div>
+          <button class="button signal-success" id="recording">
+            <span id="recordingLabel">Start recording</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="expander">
+        <header class="header" tabindex="0" id="config">
+          <span class="icon icon-plus"></span>
+          <span class="title">System</span>
+          <span class="icon icon-navigation-down"></span>
+        </header>
+        <div class="content">
+          <div class="counters">
+            <div>
+              <label class="label">Nexus Time</label>
+              <span id="nexustimetext">-</span>
+            </div>
+            <div>
+              <label class="label">Board Times</label>
+              <span id="timetexts">-</span>
+            </div>
+            <div>
+              <label class="label">Max FS</label>
+              <span id="fstexts">-</span>
+            </div>
+            <div>
+              <label class="label">Sample Counters</label>
+              <span id="countertexts">-</span>
+            </div>
+          </div>
+          <label class="checkbox">
+            <input type="checkbox" id="showvalues" />
+            <span class="box"></span>Show sensor values
+          </label>
+
+          <label class="label">Sensemats configuration</label>
+          <textarea class="text-box" id="configValue"></textarea>
+
+          <footer class="footer spacing-mt-5">
+            <button class="button" id="setconfig">Update config</button>
+          </footer>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" charset="utf-8" src="./static/main.js"></script>
+</body>
+
+</html>

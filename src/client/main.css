@@ -1,0 +1,101 @@
+:root {
+  --sensor-size: 25px;
+}
+
+.sensorholder {
+  display: grid;
+  grid-template-columns: var(--sensor-size) var(--sensor-size) var(
+      --sensor-size
+    ) var(--sensor-size) var(--sensor-size) var(--sensor-size) var(
+      --sensor-size
+    ) var(--sensor-size) var(--sensor-size);
+}
+.sensematviz{
+  display: grid;
+  grid-template-columns: auto auto;
+}
+.sensor_wrapper {
+  position: relative;
+}
+.popover {
+  position: absolute;
+}
+.column {
+  width: var(--sensor-size);
+}
+
+.powerinput {
+  font-size: 10px;
+  width: 50px;
+  margin-left: 5px;
+}
+.sensor,
+.power {
+  display: block;
+  width: var(--sensor-size);
+  height: var(--sensor-size);
+  background-color: rgba(0, 0, 0, 0);
+  /* border-radius: 50%; */
+  box-shadow: inset 0 0 0px 0px #ffffff;
+  font-size: 10px;
+  line-height: var(--sensor-size);
+  text-align: center;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  column-gap: 32px;
+}
+.counters {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  justify-content: space-between;
+  column-gap: 32px;
+}
+h5 {
+  text-transform: capitalize;
+}
+
+.graphholder {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  column-gap: 10px;
+  background-color: rgb(30, 30, 30);
+}
+
+.col-1 {
+  grid-template-columns: auto;
+}
+
+.col-2 {
+  grid-template-columns: auto auto;
+}
+
+.col-3 {
+  grid-template-columns: auto auto auto;
+}
+
+div.smoothie-chart-tooltip {
+  font-family: "centrale-sans", "neue-frutiger-worls", sans-serif;
+  background: var(--dialog-alert-background);
+  padding: 1em;
+  margin-top: 20px;
+  color: white;
+  font-size: 10px;
+  pointer-events: none;
+  border: 0.0625rem solid var(--notification-border);
+}
+
+td {
+  font-size: 11px;
+}
+
+textarea.text-box {
+  white-space: pre;
+  font-size: 11px;
+  font-family: monospace;
+  height: 400px;
+}
