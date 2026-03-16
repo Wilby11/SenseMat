@@ -1,0 +1,16 @@
+astroid
+bidict
+click
+h11
+isort
+lazy-object-proxy
+mccabe
+platformdirs
+pylint
+pyserial
+python-engineio
+python-socketio
+toml
+uvicorn
+websockets
+wrapt
