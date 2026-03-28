@@ -22,6 +22,7 @@ def sync_trackir_data():
     # fill_value='extrapolate' allows it to guess safely if a timestamp is slightly off the edges.
     interpolator = interp1d(original_times, original_data, axis=0, kind='linear', fill_value='extrapolate')
     
+    # edit here to desired timestamp frequency or external vector from SenseMat
     target_frequency = 40 
     interval = 1.0 / target_frequency
     

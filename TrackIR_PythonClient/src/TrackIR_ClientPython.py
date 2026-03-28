@@ -15,7 +15,6 @@ from NPClient import *
 
 import tkinter as tk
 
-# editado por nosotros
 import time
 from datetime import datetime
 

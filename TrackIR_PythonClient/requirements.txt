@@ -9,3 +9,8 @@ setuptools==65.5.0
 tk==0.1.0
 urllib3==1.26.15
 yarg==0.1.9
+
+# Added for data processing and visualization
+pandas
+numpy
+scipy
