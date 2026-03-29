@@ -221,6 +221,9 @@ def evaluate_40hz(df, col="RECV_TIME", expected_hz=40, plot=True):
     """
     # Convert timestamps to numeric and compute the difference between rows
     timestamps = pd.to_numeric(df[col], errors="coerce").dropna()
+    # If B_TIME is used (which is in milliseconds), convert to seconds
+    if col.upper() == "B_TIME":
+        timestamps = timestamps / 1000000
     dt = timestamps.diff().dropna()
 
     mean_dt = dt.mean()
@@ -238,13 +241,17 @@ def evaluate_40hz(df, col="RECV_TIME", expected_hz=40, plot=True):
         plt.plot(dt.values)
         plt.axhline(1 / expected_hz, linestyle="--")
         plt.title("Timing over time")
-        plt.show()
+        plt.xlabel("Sample index")   
+        plt.ylabel("Δt (seconds)")   
 
         # Plot 2: histogram of sample spacing values
         plt.figure()
         plt.hist(dt.values, bins=50)
         plt.axvline(1 / expected_hz, linestyle="--")
         plt.title("Timing distribution")
+        plt.xlabel("Δt (seconds)")            
+        plt.ylabel("Count") 
+
         plt.show()
 
     return result
@@ -320,6 +327,8 @@ if __name__ == "__main__":
     print("Repaired file saved to:", output_path)
 
     # ---- STEP 4: evaluate timing (40 Hz check) ----
-    print("--- Evaluating recording frequency ---")
-    timing_stats = evaluate_40hz(repaired_df, expected_hz=40, plot=True)
-    print(timing_stats)
+    print("\n--- Evaluating frequency (RECV_TIME) ---")
+    print(evaluate_40hz(repaired_df, col="RECV_TIME", plot=True))
+
+    print("\n--- Evaluating frequency (B_TIME) ---")
+    print(evaluate_40hz(repaired_df, col="B_TIME", plot=True))
