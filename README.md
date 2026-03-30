@@ -71,7 +71,6 @@ The configuration has the folowing structure:
 ]
 ```
 
-
 # TrackIR Instructions
 This repository contains the python tools required to capture high-speed, 6 Degrees of Freedom (6DoF) head-tracking data from the TrackIR hardware and synchronize it to any specific frequency timeline for sensor fusion with the Sensemat system.
 
