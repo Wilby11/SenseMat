@@ -15,6 +15,11 @@ def load_raw_lines(path):
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         return f.read().splitlines()
 
+def split_data_line(line):
+    parts = line.split(",")
+    if parts and parts[-1] == "":
+        parts = parts[:-1]
+    return parts
 
 def parse_sensemat_file(path):
     """
@@ -43,7 +48,18 @@ def parse_sensemat_file(path):
     header = lines[header_idx].split(",")
     header_width = len(header)
 
-    # Everything after the header is data
+    # Detect maximum width in data to allow header extension
+    raw_data_lines = lines[header_idx + 1:]
+    nonempty_lines = [line for line in raw_data_lines if line.strip() != ""]
+    max_fields = max(len(split_data_line(line)) for line in nonempty_lines) if nonempty_lines else header_width
+
+    # If data has more columns than header, extend header
+    if max_fields > header_width:
+        extra_cols = [f"TTL_{i}" for i in range(max_fields - header_width)]
+        header = header + extra_cols
+        header_width = len(header)
+
+    # Everything after the header is data (recompute)
     raw_data_lines = lines[header_idx + 1:]
     nonempty_lines = [line for line in raw_data_lines if line.strip() != ""]
     comma_counts = [line.count(",") for line in nonempty_lines]
@@ -52,18 +68,12 @@ def parse_sensemat_file(path):
     field_counts = []
 
     for line in nonempty_lines:
-        parts = line.split(",")
-
+        parts = split_data_line(line)
+ 
         # Keep track of how many values each row has
         field_counts.append(len(parts))
 
-        # IMPORTANT:
-        # we do NOT pad short rows 
-        # we only trim rows that are too long
-        #(because pandas cannot handle extra columns beyond the header)
-        if len(parts) > header_width:
-            parts = parts[:header_width]
-
+    
         # If a row is shorter than the header, pandas will automatically
         # fill the missing values with NaN
         records.append(parts)
@@ -121,7 +131,7 @@ def calculate_s_mean(df, mode="floor"):
         return np.ceil(mean_vals)
 
 
-def add_validation_columns(df, comma_counts, field_counts, expected_commas=150, mode="floor"):
+def add_validation_columns(df, comma_counts, field_counts, expected_fields=150, mode="floor"):
     """
     Add columns that help validate each row.
 
@@ -136,8 +146,7 @@ def add_validation_columns(df, comma_counts, field_counts, expected_commas=150, 
     out["field_count"] = field_counts
 
     # Check whether the raw row length matches the header length
-    header_width = len(df.columns)
-    out["length_match"] = out["field_count"] == header_width
+    out["length_match"] = out["field_count"] == expected_fields
 
     # Store both the raw mean and the mean after applying the chosen mode
     out["S_mean_calc_raw"] = df[get_s_columns(df)].mean(axis=1)
@@ -148,13 +157,13 @@ def add_validation_columns(df, comma_counts, field_counts, expected_commas=150, 
 
     # Check whether the raw line had the expected number of commas
     out["comma_count"] = comma_counts
-    out["comma_match"] = out["comma_count"] == expected_commas
+    out["comma_match"] = out["comma_count"] == expected_fields
 
     return out
 
 
 
-def repair_bad_lines(path, output_path, expected_commas=150, mode="floor", method="linear"):
+def repair_bad_lines(path, output_path, expected_fields=150, mode="floor", method="linear"):
     """
     Find bad rows and replace them using interpolation.
 
@@ -168,7 +177,7 @@ def repair_bad_lines(path, output_path, expected_commas=150, mode="floor", metho
     'method' argument.
     """
     config, header, df, comma_counts, field_counts = parse_sensemat_file(path)
-    df = add_validation_columns(df, comma_counts, field_counts, expected_commas, mode)
+    df = add_validation_columns(df, comma_counts, field_counts, expected_fields, mode)
 
     # Mark rows that fail at least one of the checks
     df["bad"] = (~df["S_mean_match"]) | (~df["comma_match"]) | (~df["length_match"])
@@ -183,7 +192,12 @@ def repair_bad_lines(path, output_path, expected_commas=150, mode="floor", metho
     clean.loc[df["bad"], s_cols] = np.nan
 
     # Fill missing values using interpolation based on surrounding rows
-    clean[s_cols] = clean[s_cols].interpolate(method=method, limit_direction="both")
+    clean["B_TIME_sec"] = clean["B_TIME"] / 1_000_000
+    clean = clean.set_index("B_TIME_sec")
+
+    clean[s_cols] = clean[s_cols].interpolate(method="index", limit_direction="both")
+
+    clean = clean.reset_index()
 
     # After interpolation, update the columns that depend on the sensor values
     # so they reflect the repaired data rather than the original broken row
@@ -199,13 +213,19 @@ def repair_bad_lines(path, output_path, expected_commas=150, mode="floor", metho
     clean["field_count"] = df["field_count"]
     clean["length_match"] = df["length_match"]
 
+    # ---- HARD CLEANUP: keep columns only up to TTL_15 ----
+    if "TTL_15" in header:
+        cutoff_idx = header.index("TTL_15") + 1
+        header = header[:cutoff_idx]
+        clean = clean[header]
+
     # Write the repaired file back out using the original header order
     with open(output_path, "w") as f:
         if config:
             f.write(config + "\n")
         f.write(",".join(header) + "\n")
         clean[header].to_csv(f, index=False, header=False)
-    
+
     return clean
 
 def evaluate_40hz(df, col="RECV_TIME", expected_hz=40, plot=True):
@@ -297,7 +317,7 @@ if __name__ == "__main__":
 
     output_path = output_dir / (input_path_obj.stem + "_processed" + input_path_obj.suffix)    
 
-    expected_commas = 150
+    expected_fields = 150
     mean_mode = "floor"                   # "floor" works for your data
     interpolation_method = "linear"
 
@@ -309,18 +329,21 @@ if __name__ == "__main__":
     # ---- STEP 2: load and validate data ----
     print("--- Parsing and validating data ---")
     config, header, df, comma_counts, field_counts = parse_sensemat_file(input_path)
-    df = add_validation_columns(df, comma_counts, field_counts, expected_commas, mean_mode)
+    df = add_validation_columns(df, comma_counts, field_counts, expected_fields, mean_mode)
 
     print("Total rows:", len(df))
     print("Mean matches:", df["S_mean_match"].sum())
     print("Mean mismatches:", (~df["S_mean_match"]).sum())
+
+    print("Length mismatches:", (~df["length_match"]).sum())
+    print("Comma mismatches:", (~df["comma_match"]).sum())
 
     # ---- STEP 3: repair bad rows ----
     print("--- Repairing bad rows ---")
     repaired_df = repair_bad_lines(
         input_path,
         str(output_path),
-        expected_commas,
+        expected_fields,
         mean_mode,
         interpolation_method,
     )
