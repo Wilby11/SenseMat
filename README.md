@@ -4,7 +4,7 @@
 
 When the SenseMat is connected to your laptop via USB (for Wilbur's laptop, com4 corresponds to the far usb-port, closest to my screen), run the following command to load the server in your webbrowser:
 ```
-python src_sensemat/server.py -p COM4 -pn head -co configuration-single.json
+python src/server.py -p COM4 -pn head -co configuration-single.json
 ```
 Perhaps if the server doesn't automatically open in the browser, open a new tab and navigate to: http://127.0.0.1:42000
 
