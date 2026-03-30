@@ -4,7 +4,7 @@
 
 When the SenseMat is connected to your laptop via USB (for Wilbur's laptop, com4 corresponds to the far usb-port, closest to my screen), run the following command to load the server in your webbrowser:
 ```
-python src/server.py -p COM4 -pn head -co configuration-single.json
+python src_sensemat/server.py -p COM4 -pn head -co configuration-single.json
 ```
 Perhaps if the server doesn't automatically open in the browser, open a new tab and navigate to: http://127.0.0.1:42000
 
@@ -15,7 +15,7 @@ Go to `http://127.0.0.1:42000` and click "Start recording" to start recording an
 Recordings are saved to the recordings folder as `recordings/[Ymd-HMS]-sensemat-serial-log.csv`
 
 ### Server
-We use SocketIO to create a server that can send data to the browser. The server is located in src/server.py. It uses the configuration file located in configuration-single.json to determine how to read data from the SenseMat and how to send it to the browser.
+We use SocketIO to create a server that can send data to the browser. The server is located in src_sensemat/server.py. It uses the configuration file located in configuration-single.json to determine how to read data from the SenseMat and how to send it to the browser.
 
 The server works as follows:
 1. Python program runs a server on your laptop
