@@ -36,6 +36,7 @@ class cHeadTrackingGUI:
         self.recorded_data = []
         self.unix_start_time = None # general absolute Unix timestamp for when recording data
         self.perf_start_time = None # detailed time to know nanosecond precision added to the unix timestamp
+        self.recording_start_datetime = None # store the datetime of the first recorded entry for filename
         self.record_counter = 0
 
         # enable getdata loop
@@ -240,8 +241,12 @@ class cHeadTrackingGUI:
         npc.UnregisterWindowHandle()
 
         try:
-            # Generate a clean timestamp string for right now (YearMonthDay_HourMinuteSecond)
-            file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Generate a clean timestamp string from the recording start time (YearMonthDay_HourMinuteSecond)
+            if self.recording_start_datetime is not None:
+                file_timestamp = self.recording_start_datetime.strftime("%Y%m%d_%H%M%S")
+            else:
+                # Fallback to current time if no recording was made
+                file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Insert that timestamp into the file name
             dynamic_filename = f"{file_timestamp}_trackir_data.csv"
@@ -375,6 +380,7 @@ class cHeadTrackingGUI:
                     if self.perf_start_time is None:
                         self.perf_start_time = raw_perf_time
                         self.unix_start_time = time.time() # time.time() is the Unix timestamp!
+                        self.recording_start_datetime = datetime.now() # store start time for filename
                         
                     # Calculate the highly precise elapsed time
                     elapsed_seconds = raw_perf_time - self.perf_start_time
