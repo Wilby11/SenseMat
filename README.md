@@ -91,7 +91,7 @@ This step opens the interface to record your physical movements. The script capt
 
 2. Run the GUI application: Open your terminal, navigate to this project folder, and execute the recording script.
 ```
-python TrackIR_ClientPython.py
+ python TrackIR_PythonClient/src/TrackIR_ClientPython.py
 ```
 3. Interact with the GUI
    * Once the GUI window appears on your screen, click Register to connect to the TrackIR background service.
