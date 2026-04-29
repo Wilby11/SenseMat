@@ -309,7 +309,7 @@ if __name__ == "__main__":
     """
 
     # ---- SETTINGS ----
-    input_path = "recordings/20260323T153346-head-sensemat-serial-log.csv" 
+    input_path = "../recordings/Recorded data 22-04/20260422T112532-head-sensemat-serial-log_(Liya).csv"
     input_path_obj = Path(input_path)
 
     output_dir = input_path_obj.parent / "processed_sensemat_data"
