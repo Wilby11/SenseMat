@@ -3,9 +3,8 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
 
-def sync_trackir_data():    
+def sync_trackir_data(trackir_filepath, sensemat_filepath):    
     # Load the CSV file containing the raw TrackIR data
-    trackir_filepath = os.path.join("recordings", "20260323_153457_trackir_data.csv")
     trackir_df = pd.read_csv(trackir_filepath, sep=';')
 
     # Extract the absolute Unix timestamps and the 6DoF data
@@ -13,7 +12,6 @@ def sync_trackir_data():
     trackir_data = trackir_df[['X', 'Y', 'Z', 'Pitch', 'Yaw', 'Roll']].values
 
     # Load the CSV file containing the raw SenseMat data
-    sensemat_filepath = os.path.join('..', '..', 'recordings', '20260323T153346-head-sensemat-serial-log.csv')
     # Skip the config row and the header row (skiprows=2)
     # Provide 200 integer column names (names=range(200)) to catch all the extra commas safely
     # 200 is an arbitrary large number to ensure we capture all columns without error as we will only use the first one
