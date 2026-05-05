@@ -18,10 +18,10 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     sensemat_df = pd.read_csv(sensemat_filepath, skiprows=2, header=None, names=range(200), low_memory=False)
 
     # Extract the target timestamps we want to align to
-    target_times = sensemat_df[0].dropna().values
+    sensemat_times = sensemat_df[0].dropna().values
 
     # Check if the TrackIR timestamps overlap with the SenseMat timestamps
-    assert (trackir_times[0] <= target_times[-1]) & (trackir_times[-1] >= target_times[0]), "TrackIR data does not overlap with SenseMat data. Please check the timestamps and ensure they are from the same recording session."
+    assert (trackir_times[0] <= sensemat_times[-1]) & (trackir_times[-1] >= sensemat_times[0]), "TrackIR data does not overlap with SenseMat data. Please check the timestamps and ensure they are from the same recording session."
 
     # Build the Interpolation Machine
     # This creates a mathematical function that can predict the position at ANY given microsecond
@@ -30,24 +30,27 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     interpolator = interp1d(trackir_times, trackir_data, axis=0, kind='linear', fill_value='extrapolate')
 
     # Feed it the timestamps, and it spits out the exact positions for those times.
-    synced_data = interpolator(target_times)
+    synched_data = interpolator(sensemat_times)
 
     # Save the results to a new, clean CSV
     # Rebuild a new dataframe with the perfectly synced data
-    synced_df = pd.DataFrame(synced_data, columns=['X', 'Y', 'Z', 'Pitch', 'Yaw', 'Roll'])
+    synced_df = pd.DataFrame(synched_data, columns=['X', 'Y', 'Z', 'Pitch', 'Yaw', 'Roll'])
 
     # Insert the perfect timestamps as the very first column
-    synced_df.insert(0, 'Unix_Timestamp', target_times)
+    synced_df.insert(0, 'Unix_Timestamp', sensemat_times)
 
     # Find the timestamp where we reset the TrackIR data to zero (approximately zero)
     TrackIR_reset_row = synced_df[(abs(synced_df['X']) < 0.0001) & (abs(synced_df['Y']) < 0.0001) & (abs(synced_df['Z']) < 0.001) & (abs(synced_df['Pitch']) < 0.0001) & (abs(synced_df['Yaw']) < 0.0001) & (abs(synced_df['Roll']) < 0.0001)].iloc[0]
     TrackIR_rest_Unix = TrackIR_reset_row["Unix_Timestamp"]
 
+    # Find the end of the recording, i.e. the minimum last timestamp between TrackIR and SenseMat
+    end_timestamp = min(trackir_times[-1], sensemat_times[-1])
+
     # Remove all data points before the reset for TrackIR
-    synced_df_reset = synced_df[synced_df["Unix_Timestamp"] >= TrackIR_rest_Unix]
+    trackir_synched_trimmed = synced_df[(synced_df["Unix_Timestamp"] >= TrackIR_rest_Unix) & (synced_df["Unix_Timestamp"] <= end_timestamp)]
 
     # Remove all data points before the reset for SenseMat
-    sensemat_df_trimmed = sensemat_df[sensemat_df[0] >= TrackIR_rest_Unix]
+    sensemat_trimmed = sensemat_df[(sensemat_df[0] >= TrackIR_rest_Unix) & (sensemat_df[0] <= end_timestamp)]
 
     # Save both to 'Synched data' folder in the global repository with SenseMat-based filenames
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -60,11 +63,11 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
 
     # TrackIR output
     trackir_output = os.path.join(synched_dir, f"{prefix}_trackir_synched.csv")
-    synced_df_reset.to_csv(trackir_output, sep=';', index=False)
+    trackir_synched_trimmed.to_csv(trackir_output, sep=';', index=False)
 
     # SenseMat output
     sensemat_output = os.path.join(synched_dir, f"{prefix}_sensemat_synched.csv")
-    sensemat_df_trimmed.to_csv(sensemat_output, index=False)
+    sensemat_trimmed.to_csv(sensemat_output, index=False)
 
     print(f"Success! Synced TrackIR data saved to {trackir_output}.")
     print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
