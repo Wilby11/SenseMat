@@ -1,6 +1,26 @@
-# SenseMat Instructions
+# SenseMat
 
-## Run server for use with one board and no nexus
+# Table of contents
+1. [Introduction](#introduction)
+2. [SenseMat](#sensemat)
+    1. [Explanation](#sensemat-explanation)
+    2. [Recording](#sensemat-recording)
+    3. [Server](#sensemat-server)
+3. [TrackIR](#trackir)
+    1. [Explanation](#trackir-explanation)
+    2. [Recording](#trackir-recording)
+    3. [Synchronizing to the desired frequency](#trackir-synchronizing)
+4. [Preprocessing](#preprocessing)
+
+
+## Introduction <a name="introduction"></a>
+This repository contains all the information needed to replicate our results acquired during our research project. The project poses a method to use a mat with a grid of pressure points to estimate a patient's head movement during an image-guided medical therapy.
+
+This repository facilitates the training of AI-models for use in predicting a patient's head movement during a medical procedure. 
+
+## SenseMat <a name="sensemat"></a>
+
+### Run server for use with one board and no nexus
 
 When the SenseMat is connected to your laptop via USB (for Wilbur's laptop, com4 corresponds to the far usb-port, closest to my screen), run the following command to load the server in your webbrowser:
 ```
@@ -71,7 +91,7 @@ The configuration has the folowing structure:
 ]
 ```
 
-# TrackIR Instructions
+# TrackIR <a name="trackir"></a>
 This repository contains the python tools required to capture high-speed, 6 Degrees of Freedom (6DoF) head-tracking data from the TrackIR hardware and synchronize it to any specific frequency timeline for sensor fusion with the Sensemat system.
 
 ### Prerequisites
