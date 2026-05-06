@@ -75,20 +75,17 @@ The configuration has the folowing structure:
 ### Example for single board usage
 
 ```
-[
-  {
-      "id": "head",
-      "rx": 8,
-      "tx": 16,
-      "d": 64000,
-      "ledpower": "4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095,4095, 4095, 4095, 4095",
-      "gain": 1000,
-      "integration": 256,
-      "guard": 10,
-      "samplerate": 40,
-      "ttl": 1
-  }
-]
+[{  "id": "head",
+    "rx": 8,
+    "tx": 16,
+    "d": 64000,
+    "ledpower": "4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095",
+    "gain": 1000,
+    "integration": 256,
+    "guard": 10,
+    "samplerate": 40,
+    "ttl": 1
+}]
 ```
 
 # TrackIR <a name="trackir"></a>
@@ -136,6 +133,26 @@ input_filename = os.path.join("recordings", "YYYYMMDD_HHMMSS_trackir_data.csv")
 ```
 python sync_data.py
 ```
-## The output
+### The output
 The script will strip away the hardware telemetry and output a clean, 7-column CSV file into your ```recordings``` folder:
 ```Unix_Timestamp | X | Y | Z | Pitch | Yaw | Roll```
+
+
+## Preprocessing <a name="preprocessing"></a>
+Raw measurement data from both SenseMat and TrackIR should be prepocessed before training an AI-model on it. Firstly, you need to run the following command in your terminal: 
+``` python "Preprocess Sensemat data.py" ```
+This will run a Python script which:
+- neatly converts the recorded SenseMat data to a Pandas dataframe;
+- calculates the sensor mean from the raw S columns and compares it to the existing S_mean column;
+- checks whether the row has the expected number of commas;
+- checks whether the row length matches the header length;
+- finds 'bad' rows and replaces them using interpolation;
+- evaluates how closely the recording matches the chosen sampling rate
+
+Next, we need to synchronize the SenseMat and TrackIR data, since both recordings happen at a different sampling frequency and since we do not start the recordings at the exact moment in time. We have chosen to match the TrackIR data to the timestamps present in the corresponding SenseMat recording. Run the following command in your terminal:
+``` python "Synchonize_data.py" ```
+This will run a Python script which:
+- reads the preprocessed SenseMat and TrackIR data from the recordings folder;
+- identifies the timestamps in the SenseMat data and uses linear interpolation for each of the six features (X, Y, Z, pitch, jaw, roll) to match the TrackIR data to the SenseMat timestamps;
+- finds the timestamp where the TrackIR data is centered (reset camera) and finds the end of the recording (minimum final timestamp of either recording) and trims both datasets to this time range;
+- saves the synchronized data to new CSV files under `Synched data`.
