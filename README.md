@@ -34,6 +34,24 @@ Go to `http://127.0.0.1:42000` and click "Start recording" to start recording an
 
 Recordings are saved to the recordings folder as `recordings/[Ymd-HMS]-sensemat-serial-log.csv`
 
+### Combined launch
+You can start both the SenseMat server and the TrackIR client from one command using the helper script:
+
+```bash
+python start_both_recordings.py
+```
+
+This opens the SenseMat web interface automatically and launches the TrackIR GUI. After both are running:
+
+* use the browser button to start SenseMat recording
+* use the TrackIR GUI buttons to register/start tracking
+
+If you want to keep the browser from opening automatically, use:
+
+```bash
+python start_both_recordings.py --no-browser
+```
+
 ### Server
 We use SocketIO to create a server that can send data to the browser. The server is located in src_sensemat/server.py. It uses the configuration file located in configuration-single.json to determine how to read data from the SenseMat and how to send it to the browser.
 
