@@ -12,13 +12,11 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     trackir_data = trackir_df[['X', 'Y', 'Z', 'Pitch', 'Yaw', 'Roll']].values
 
     # Load the CSV file containing the raw SenseMat data
-    # Skip the config row and the header row (skiprows=2)
-    # Provide 200 integer column names (names=range(200)) to catch all the extra commas safely
-    # 200 is an arbitrary large number to ensure we capture all columns without error as we will only use the first one
-    sensemat_df = pd.read_csv(sensemat_filepath, skiprows=2, header=None, names=range(200), low_memory=False)
+    # - Skip the config row (1st line), but keep the header (2nd line) for column names
+    sensemat_df = pd.read_csv(sensemat_filepath, sep=",", comment="#", header=0, usecols=[0]+list(range(3,131)), low_memory=False)
 
     # Extract the target timestamps we want to align to
-    sensemat_times = sensemat_df[0].dropna().values
+    sensemat_times = sensemat_df["RECV_TIME"].dropna().values
 
     # Check if the TrackIR timestamps overlap with the SenseMat timestamps
     assert (trackir_times[0] <= sensemat_times[-1]) & (trackir_times[-1] >= sensemat_times[0]), "TrackIR data does not overlap with SenseMat data. Please check the timestamps and ensure they are from the same recording session."
@@ -50,7 +48,7 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     trackir_synched_trimmed = synced_df[(synced_df["Unix_Timestamp"] >= TrackIR_rest_Unix) & (synced_df["Unix_Timestamp"] <= end_timestamp)]
 
     # Remove all data points before the reset for SenseMat
-    sensemat_trimmed = sensemat_df[(sensemat_df[0] >= TrackIR_rest_Unix) & (sensemat_df[0] <= end_timestamp)]
+    sensemat_trimmed = sensemat_df[(sensemat_df["RECV_TIME"] >= TrackIR_rest_Unix) & (sensemat_df["RECV_TIME"] <= end_timestamp)]
 
     # Save both to 'Synched data' folder in the global repository with SenseMat-based filenames
     script_dir = os.path.dirname(os.path.abspath(__file__))
