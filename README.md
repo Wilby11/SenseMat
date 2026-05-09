@@ -1,6 +1,26 @@
-# SenseMat Instructions
+# SenseMat
 
-## Run server for use with one board and no nexus
+# Table of contents
+1. [Introduction](#introduction)
+2. [SenseMat](#sensemat)
+    1. [Explanation](#sensemat-explanation)
+    2. [Recording](#sensemat-recording)
+    3. [Server](#sensemat-server)
+3. [TrackIR](#trackir)
+    1. [Explanation](#trackir-explanation)
+    2. [Recording](#trackir-recording)
+    3. [Synchronizing to the desired frequency](#trackir-synchronizing)
+4. [Preprocessing](#preprocessing)
+
+
+## Introduction <a name="introduction"></a>
+This repository contains all the information needed to replicate our results acquired during our research project. The project poses a method to use a mat with a grid of pressure points to estimate a patient's head movement during an image-guided medical therapy.
+
+This repository facilitates the training of AI-models for use in predicting a patient's head movement during a medical procedure. 
+
+## SenseMat <a name="sensemat"></a>
+
+### Run server for use with one board and no nexus
 
 When the SenseMat is connected to your laptop via USB (for Wilbur's laptop, com4 corresponds to the far usb-port, closest to my screen), run the following command to load the server in your webbrowser:
 ```
@@ -13,6 +33,24 @@ Perhaps if the server doesn't automatically open in the browser, open a new tab 
 Go to `http://127.0.0.1:42000` and click "Start recording" to start recording and forwarding sensor data over a websocket. To stop recording click "End recording".
 
 Recordings are saved to the recordings folder as `recordings/[Ymd-HMS]-sensemat-serial-log.csv`
+
+### Combined launch
+You can start both the SenseMat server and the TrackIR client from one command using the helper script:
+
+```bash
+python start_both_recordings.py
+```
+
+This opens the SenseMat web interface automatically and launches the TrackIR GUI. After both are running:
+
+* use the browser button to start SenseMat recording
+* use the TrackIR GUI buttons to register/start tracking
+
+If you want to keep the browser from opening automatically, use:
+
+```bash
+python start_both_recordings.py --no-browser
+```
 
 ### Server
 We use SocketIO to create a server that can send data to the browser. The server is located in src_sensemat/server.py. It uses the configuration file located in configuration-single.json to determine how to read data from the SenseMat and how to send it to the browser.
@@ -55,24 +93,26 @@ The configuration has the folowing structure:
 ### Example for single board usage
 
 ```
-[
-  {
-      "id": "head",
-      "rx": 8,
-      "tx": 16,
-      "d": 64000,
-      "ledpower": "4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095,4095, 4095, 4095, 4095",
-      "gain": 1000,
-      "integration": 256,
-      "guard": 10,
-      "samplerate": 40,
-      "ttl": 1
-  }
-]
+[{  "id": "head",
+    "rx": 8,
+    "tx": 16,
+    "d": 64000,
+    "ledpower": "4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095, 4095",
+    "gain": 1000,
+    "integration": 256,
+    "guard": 10,
+    "samplerate": 40,
+    "ttl": 1
+}]
 ```
 
-# TrackIR Instructions
+# TrackIR <a name="trackir"></a>
+<img src="Images/TrackIR_X_Y_Z_Yaw_Pitch_Roll.png" alt="TrackIR axes" width="50%" />
+
+
 This repository contains the python tools required to capture high-speed, 6 Degrees of Freedom (6DoF) head-tracking data from the TrackIR hardware and synchronize it to any specific frequency timeline for sensor fusion with the Sensemat system.
+
+
 
 ### Prerequisites
 Before running these scripts, ensure you have:
@@ -116,6 +156,26 @@ input_filename = os.path.join("recordings", "YYYYMMDD_HHMMSS_trackir_data.csv")
 ```
 python sync_data.py
 ```
-## The output
+### The output
 The script will strip away the hardware telemetry and output a clean, 7-column CSV file into your ```recordings``` folder:
 ```Unix_Timestamp | X | Y | Z | Pitch | Yaw | Roll```
+
+
+## Preprocessing <a name="preprocessing"></a>
+Raw measurement data from both SenseMat and TrackIR should be prepocessed before training an AI-model on it. Firstly, you need to run the following command in your terminal: 
+``` python "Preprocess Sensemat data.py" ```
+This will run a Python script which:
+- neatly converts the recorded SenseMat data to a Pandas dataframe;
+- calculates the sensor mean from the raw S columns and compares it to the existing S_mean column;
+- checks whether the row has the expected number of commas;
+- checks whether the row length matches the header length;
+- finds 'bad' rows and replaces them using interpolation;
+- evaluates how closely the recording matches the chosen sampling rate
+
+Next, we need to synchronize the SenseMat and TrackIR data, since both recordings happen at a different sampling frequency and since we do not start the recordings at the exact moment in time. We have chosen to match the TrackIR data to the timestamps present in the corresponding SenseMat recording. Run the following command in your terminal:
+``` python "Synchonize_data.py" ```
+This will run a Python script which:
+- reads the preprocessed SenseMat and TrackIR data from the recordings folder;
+- identifies the timestamps in the SenseMat data and uses linear interpolation for each of the six features (X, Y, Z, pitch, jaw, roll) to match the TrackIR data to the SenseMat timestamps;
+- finds the timestamp where the TrackIR data is centered (reset camera) and finds the end of the recording (minimum final timestamp of either recording) and trims both datasets to this time range;
+- saves the synchronized data to new CSV files under `Synched data`.
