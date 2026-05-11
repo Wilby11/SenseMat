@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SenseMat & TrackIR Data Visualization</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
@@ -79,6 +78,14 @@
             background-color: #000;
             border: 1px solid #333;
             transition: background-color 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #ffffff;
+            text-shadow: 0 0 2px rgba(0,0,0,0.8);
+            padding: 2px;
+            overflow: hidden;
         }
         
         .colorbar-container {
@@ -352,19 +359,14 @@
         
         <div class="loading" id="loading">
             <div class="loading-content">
-                <h3>Loading Data Files...</h3>
+                <h3>Loading Data File...</h3>
                 <div class="file-input-section">
-                    <p><strong>Due to browser security restrictions, please select the data files manually:</strong></p>
+                    <p><strong>Due to browser security restrictions, please select the data file manually:</strong></p>
                     <div class="file-inputs">
                         <div class="file-input-group">
-                            <label for="senseMatFile">SenseMat CSV file:</label>
-                            <input type="file" id="senseMatFile" accept=".csv" />
-                            <div class="file-status" id="senseMatStatus">Not selected</div>
-                        </div>
-                        <div class="file-input-group">
-                            <label for="trackIRFile">TrackIR CSV file:</label>
-                            <input type="file" id="trackIRFile" accept=".csv" />
-                            <div class="file-status" id="trackIRStatus">Not selected</div>
+                            <label for="dataFile">Data CSV file:</label>
+                            <input type="file" id="dataFile" accept=".csv" />
+                            <div class="file-status" id="dataStatus">Not selected</div>
                         </div>
                     </div>
                     <button id="loadDataBtn" disabled>Load Data</button>
@@ -372,14 +374,14 @@
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
-                <div class="loading-details" id="loadingDetails">Please select data files...</div>
+                <div class="loading-details" id="loadingDetails">Please select the data file...</div>
                 <div class="loading-tips">
                     <p><strong>Tips:</strong></p>
                     <ul>
                         <li>Open browser console (F12) for detailed loading progress</li>
                         <li>Typical loading time: 2-10 seconds depending on file sizes</li>
-                        <li>Select both files, then click "Load Data"</li>
-                        <li>If loading fails, check that you selected the correct CSV files</li>
+                        <li>Select the file, then click "Load Data"</li>
+                        <li>If loading fails, check that you selected the correct CSV file</li>
                     </ul>
                 </div>
             </div>
@@ -388,6 +390,7 @@
         <div id="main-content" style="display: none;">
             <div class="main-content">
                 <div class="left-panel">
+                    <h3>SenseMat Pressure Grid</h3>
                     <div class="grid-container">
                         <div class="pressure-grid" id="pressureGrid"></div>
                     </div>
@@ -401,296 +404,222 @@
                 </div>
                 
                 <div class="center-panel">
+                    <h3>Actual 6 DOF Head Pose</h3>
                     <div class="head-container">
-                        <div id="headCanvas"></div>
+                        <div id="actualCanvas"></div>
                     </div>
                 </div>
                 
                 <div class="right-panel">
-                    <div class="controls">
-                        <h3>Time Control</h3>
-                        <div class="time-display" id="timeDisplay">Time: 0.000s</div>
-                        <div class="control-buttons">
-                            <button id="startBtn" class="control-btn">Start</button>
-                            <button id="stopBtn" class="control-btn stop">Stop</button>
-                            <button id="resetBtn" class="control-btn reset">Reset</button>
-                        </div>
-                    </div>
-                    
-                    <div class="status-bar" id="statusBar">
-                        Ready
+                    <h3>Predicted 6 DOF Head Pose</h3>
+                    <div class="head-container">
+                        <div id="predictedCanvas"></div>
                     </div>
                 </div>
             </div>
             
-            <div class="charts-container">
-                <div class="chart-wrapper">
-                    <canvas id="xChart"></canvas>
+            <div class="controls">
+                <h3>Playback Control</h3>
+                <div class="time-display" id="timeDisplay">Time: 0.000s</div>
+                <div class="time-display" id="frameCounter">Frame: 0 / 0</div>
+                <div class="control-buttons">
+                    <button id="startBtn" class="control-btn">Start</button>
+                    <button id="stopBtn" class="control-btn stop">Stop</button>
+                    <button id="resetBtn" class="control-btn reset">Reset</button>
                 </div>
-                <div class="chart-wrapper">
-                    <canvas id="yChart"></canvas>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="zChart"></canvas>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="pitchChart"></canvas>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="yawChart"></canvas>
-                </div>
-                <div class="chart-wrapper">
-                    <canvas id="rollChart"></canvas>
-                </div>
+            </div>
+            
+            <div class="status-bar" id="statusBar">
+                Ready
             </div>
         </div>
     </div>
 
     <script>
-        // Global variables
         let senseMatData = [];
-        let trackIRData = [];
+        let selectedFile = null;
         let currentTimeIndex = 0;
         let isPlaying = false;
         let playInterval = null;
-        let scene, camera, renderer, headMesh;
-        let charts = {};
-        let selectedFiles = {
-            senseMat: null,
-            trackIR: null
-        };
         let globalMinValue = 0;
-        let globalMaxValue = 1000; // Static range for pressure values
-        
-        // Initialize the application
+        let globalMaxValue = 1000;
+        let actualHead = null;
+        let predictedHead = null;
+
         function init() {
             setupFileInputs();
             setupGrid();
-            setupHeadVisualization();
-            setupCharts();
             setupControls();
-            updateProgress(0, 'Please select data files...');
+            updateProgress(0, 'Please select the CSV file with sensor and pose data.');
         }
-        
-        // Setup file input handlers
+
         function setupFileInputs() {
-            const senseMatFile = document.getElementById('senseMatFile');
-            const trackIRFile = document.getElementById('trackIRFile');
+            const dataFile = document.getElementById('dataFile');
+            const dataStatus = document.getElementById('dataStatus');
             const loadDataBtn = document.getElementById('loadDataBtn');
-            
-            senseMatFile.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                const status = document.getElementById('senseMatStatus');
-                
+
+            dataFile.addEventListener('change', (event) => {
+                const file = event.target.files[0];
                 if (file) {
-                    selectedFiles.senseMat = file;
-                    status.textContent = `Selected: ${file.name}`;
-                    status.className = 'file-status success';
+                    selectedFile = file;
+                    dataStatus.textContent = `Selected: ${file.name}`;
+                    dataStatus.className = 'file-status success';
                 } else {
-                    selectedFiles.senseMat = null;
-                    status.textContent = 'Not selected';
-                    status.className = 'file-status';
+                    selectedFile = null;
+                    dataStatus.textContent = 'Not selected';
+                    dataStatus.className = 'file-status';
                 }
-                
-                updateLoadButton();
+                loadDataBtn.disabled = !selectedFile;
             });
-            
-            trackIRFile.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                const status = document.getElementById('trackIRStatus');
-                
-                if (file) {
-                    selectedFiles.trackIR = file;
-                    status.textContent = `Selected: ${file.name}`;
-                    status.className = 'file-status success';
-                } else {
-                    selectedFiles.trackIR = null;
-                    status.textContent = 'Not selected';
-                    status.className = 'file-status';
-                }
-                
-                updateLoadButton();
-            });
-            
-            loadDataBtn.addEventListener('click', loadDataFromFiles);
+
+            loadDataBtn.addEventListener('click', loadDataFromFile);
         }
-        
-        // Update load button state
-        function updateLoadButton() {
-            const loadDataBtn = document.getElementById('loadDataBtn');
-            loadDataBtn.disabled = !(selectedFiles.senseMat && selectedFiles.trackIR);
-        }
-        
-        // Load data from selected files
-        async function loadDataFromFiles() {
-            const startTime = performance.now();
-            
+
+        async function loadDataFromFile() {
+            if (!selectedFile) return;
+            updateProgress(10, 'Reading CSV file...');
             try {
-                updateProgress(10, 'Initializing data loader...');
-                await new Promise(resolve => setTimeout(resolve, 100));
-                
-                // Load SenseMat data
-                updateProgress(20, 'Reading SenseMat file...');
-                console.log('Starting to read SenseMat file...');
-                
-                const senseMatText = await readFileAsText(selectedFiles.senseMat);
-                console.log(`SenseMat data loaded, size: ${senseMatText.length} characters`);
-                
-                updateProgress(40, 'Parsing SenseMat data...');
-                senseMatData = parseSenseMatCSV(senseMatText);
-                console.log(`SenseMat data parsed: ${senseMatData.length} records`);
-                
-                // Calculate global min/max for pressure values
-                if (senseMatData.length > 0) {
-                    // Use a more efficient approach to avoid stack overflow
-                    let min = Infinity;
-                    let max = -Infinity;
-                    let sampleSize = Math.min(senseMatData.length, 1000); // Sample first 1000 records
-                    
-                    for (let i = 0; i < sampleSize; i++) {
-                        const values = senseMatData[i].sensorData;
-                        for (let j = 0; j < values.length; j++) {
-                            if (values[j] < min) min = values[j];
-                            if (values[j] > max) max = values[j];
-                        }
-                    }
-                    
-                    globalMinValue = min;
-                    globalMaxValue = max;
-                    console.log(`Pressure range (sampled): ${globalMinValue.toFixed(2)} to ${globalMaxValue.toFixed(2)}`);
+                const text = await readFileAsText(selectedFile);
+                updateProgress(40, 'Parsing CSV data...');
+                senseMatData = parseSingleCSV(text);
+                if (senseMatData.length === 0) {
+                    throw new Error('No valid rows found in the CSV file.');
                 }
-                
-                // Load TrackIR data
-                updateProgress(60, 'Reading TrackIR file...');
-                console.log('Starting to read TrackIR file...');
-                
-                const trackIRText = await readFileAsText(selectedFiles.trackIR);
-                console.log(`TrackIR data loaded, size: ${trackIRText.length} characters`);
-                
-                updateProgress(80, 'Parsing TrackIR data...');
-                trackIRData = parseTrackIRCSV(trackIRText);
-                console.log(`TrackIR data parsed: ${trackIRData.length} records`);
-                
-                updateProgress(90, 'Setting up visualization...');
-                
-                // Re-setup charts with actual data
-                setupCharts();
-                
-                // Initialize visualization components
-                updateVisualization(0);
-                
-                const endTime = performance.now();
-                const loadTime = ((endTime - startTime) / 1000).toFixed(2);
-                console.log(`Total loading time: ${loadTime} seconds`);
-                
-                updateProgress(100, `Complete! Loaded in ${loadTime}s`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Hide loading screen and show main content
+                calculatePressureRange();
+                updateProgress(70, 'Initializing visualization...');
+
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('main-content').style.display = 'block';
-                
-                updateStatus(`Data loaded successfully (${loadTime}s)`);
-                
+
+                actualHead = createHeadScene('actualCanvas');
+                predictedHead = createHeadScene('predictedCanvas');
+                updateVisualization(0);
+
+                updateStatus(`Loaded ${senseMatData.length} frames`);
+                updateProgress(100, 'Ready');
             } catch (error) {
-                console.error('Data loading error:', error);
-                updateProgress(0, `Error: ${error.message}`);
+                console.error(error);
                 updateStatus(`Error: ${error.message}`);
-                alert(`Error loading data: ${error.message}\n\nPlease check that you selected the correct CSV files.`);
+                updateProgress(0, `Error: ${error.message}`);
+                alert(`Error loading CSV: ${error.message}`);
             }
         }
-        
-        // Read file as text
+
         function readFileAsText(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = (e) => reject(new Error(`Failed to read file: ${file.name}`));
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
                 reader.readAsText(file);
             });
         }
-        
-        // Parse SenseMat CSV
-        function parseSenseMatCSV(csvText) {
-            const lines = csvText.split('\n');
-            const data = [];
-            
-            // Skip header and config lines
-            const dataStartIndex = lines.findIndex(line => line.startsWith('RECV_TIME'));
-            
-            if (dataStartIndex === -1) {
-                throw new Error('Invalid SenseMat CSV format - RECV_TIME header not found');
+
+        function parseSingleCSV(csvText) {
+            const cleanedText = csvText.replace(/\r/g, '');
+            const lines = cleanedText.split('\n').filter(line => line.trim().length > 0);
+            if (lines.length === 0) {
+                throw new Error('CSV file is empty');
             }
-            
-            // Limit the number of lines to process to avoid stack overflow
-            const maxLines = Math.min(lines.length - dataStartIndex - 1, 10000);
-            
-            for (let i = dataStartIndex + 1; i < dataStartIndex + 1 + maxLines; i++) {
-                const line = lines[i].trim();
-                if (line) {
-                    const values = line.split(',');
-                    if (values.length > 130) {
-                        const row = {
-                            timestamp: parseFloat(values[0]),
-                            triggerCount: parseInt(values[1]),
-                            sensorData: []
-                        };
-                        
-                        // Extract sensor data (S_0_0 to S_7_15) - 128 sensors total
-                        for (let j = 3; j <= 130 && j < values.length; j++) {
-                            const value = parseFloat(values[j]);
-                            row.sensorData.push(isNaN(value) ? 0 : value);
-                        }
-                        
-                        // Ensure we have exactly 128 sensor values
-                        while (row.sensorData.length < 128) {
-                            row.sensorData.push(0);
-                        }
-                        
-                        data.push(row);
-                    }
+
+            const delimiter = lines[0].includes(';') ? ';' : ',';
+            const rawHeaders = lines[0].split(delimiter).map(header => header.trim().replace(/^\uFEFF/, ''));
+            const normalizeHeader = (header) => header.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+            const headers = rawHeaders.map(normalizeHeader);
+            const headerIndex = {};
+            headers.forEach((header, index) => {
+                headerIndex[header] = index;
+            });
+
+            const requiredHeaders = ['timestamp'];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 16; col++) {
+                    requiredHeaders.push(`s_${row}_${col}`);
                 }
             }
-            
-            console.log(`Parsed ${data.length} SenseMat records (limited to ${maxLines} lines)`);
-            return data;
-        }
-        
-        // Parse TrackIR CSV
-        function parseTrackIRCSV(csvText) {
-            const lines = csvText.split('\n');
+            requiredHeaders.push('x', 'y', 'z', 'pitch', 'yaw', 'roll', 'predicted_x', 'predicted_y', 'predicted_z', 'predicted_yaw', 'predicted_pitch', 'predicted_roll');
+
+            const missingHeaders = requiredHeaders.filter(header => headerIndex[header] === undefined);
+            if (missingHeaders.length > 0) {
+                throw new Error(`Missing required CSV headers: ${missingHeaders.join(', ')}`);
+            }
+
+            console.log('Parsed headers:', headers);
+            console.log('Header index:', headerIndex);
+
             const data = [];
-            
-            // Skip header and limit lines to avoid stack overflow
-            const maxLines = Math.min(lines.length - 1, 10000);
-            
-            for (let i = 1; i < 1 + maxLines; i++) {
-                const line = lines[i].trim();
-                if (line) {
-                    const values = line.split(';');
-                    if (values.length >= 7) {
-                        data.push({
-                            timestamp: parseFloat(values[0]),
-                            x: parseFloat(values[1]),
-                            y: parseFloat(values[2]),
-                            z: parseFloat(values[3]),
-                            pitch: parseFloat(values[4]),
-                            yaw: parseFloat(values[5]),
-                            roll: parseFloat(values[6])
-                        });
+            for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+                const values = lines[lineIndex].split(delimiter).map(value => value.trim());
+
+                const timestamp = parseFloat(values[headerIndex['timestamp']]);
+                if (!Number.isFinite(timestamp)) {
+                    console.log(`Row ${lineIndex}: invalid timestamp:`, values[headerIndex['timestamp']]);
+                    continue;
+                }
+
+                const sensorData = [];
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 16; col++) {
+                        const header = `s_${row}_${col}`;
+                        const idx = headerIndex[header];
+                        const value = idx !== undefined ? parseFloat(values[idx]) : NaN;
+                        sensorData.push(Number.isFinite(value) ? value : 0);
                     }
                 }
+
+                const actual = {
+                    x: parseFloat(values[headerIndex['x']]),
+                    y: parseFloat(values[headerIndex['y']]),
+                    z: parseFloat(values[headerIndex['z']]),
+                    pitch: parseFloat(values[headerIndex['pitch']]),
+                    yaw: parseFloat(values[headerIndex['yaw']]),
+                    roll: parseFloat(values[headerIndex['roll']])
+                };
+                const predicted = {
+                    x: parseFloat(values[headerIndex['predicted_x']]),
+                    y: parseFloat(values[headerIndex['predicted_y']]),
+                    z: parseFloat(values[headerIndex['predicted_z']]),
+                    pitch: parseFloat(values[headerIndex['predicted_pitch']]),
+                    yaw: parseFloat(values[headerIndex['predicted_yaw']]),
+                    roll: parseFloat(values[headerIndex['predicted_roll']])
+                };
+
+                if (
+                    actual.x === predicted.x &&
+                    actual.y === predicted.y &&
+                    actual.z === predicted.z &&
+                    actual.roll === predicted.roll &&
+                    actual.pitch === predicted.yaw &&
+                    actual.yaw === predicted.pitch
+                ) {
+                    const correctedYaw = predicted.yaw;
+                    predicted.yaw = predicted.pitch;
+                    predicted.pitch = correctedYaw;
+                    console.log(`Row ${lineIndex}: swapped predicted pitch/yaw to match actual`, predicted);
+                }
+
+                console.log(`Row ${lineIndex}:`, { timestamp, actual, predicted });
+                data.push({ timestamp, sensorData, actual, predicted });
             }
-            
-            console.log(`Parsed ${data.length} TrackIR records (limited to ${maxLines} lines)`);
+            console.log('Parsed data rows:', data.length);
             return data;
         }
-        
-        // Setup pressure grid
+
+        function calculatePressureRange() {
+            let min = Infinity;
+            let max = -Infinity;
+            senseMatData.forEach(frame => {
+                frame.sensorData.forEach(value => {
+                    if (value < min) min = value;
+                    if (value > max) max = value;
+                });
+            });
+            globalMinValue = Number.isFinite(min) ? min : 0;
+            globalMaxValue = Number.isFinite(max) ? max : globalMinValue + 1;
+        }
+
         function setupGrid() {
             const grid = document.getElementById('pressureGrid');
             grid.innerHTML = '';
-            
             for (let i = 0; i < 128; i++) {
                 const cell = document.createElement('div');
                 cell.className = 'grid-cell';
@@ -698,183 +627,78 @@
                 grid.appendChild(cell);
             }
         }
-        
-        // Setup 3D head visualization
-        function setupHeadVisualization() {
-            const container = document.getElementById('headCanvas');
-            const width = 280;
-            const height = 380;
-            
-            // Scene setup
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf0f0f0);
-            
-            // Camera setup - closer distance as requested
-            camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-            camera.position.set(1.5, 1, 3);
+
+        function createHeadScene(containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const width = container.clientWidth || 320;
+            const height = 360;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf8f8f8);
+
+            const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(1.5, 1.2, 3);
             camera.lookAt(0, 0, 0);
-            
-            // Renderer setup
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(width, height);
             container.appendChild(renderer.domElement);
-            
-            // Lighting
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.7);
             scene.add(ambientLight);
-            
+
             const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(5, 10, 5);
+            directionalLight.position.set(4, 10, 6);
             scene.add(directionalLight);
-            
-            // Create simple head representation (grey box as from 2 proposals back)
+
             const headGroup = new THREE.Group();
-            
-            // Main head (simple grey box)
             const headGeometry = new THREE.BoxGeometry(1, 1.2, 0.8);
-            const headMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0x87ceeb, // Light blue-grey color
-                shininess: 100
-            });
-            headMesh = new THREE.Mesh(headGeometry, headMaterial);
+            const headMaterial = new THREE.MeshPhongMaterial({ color: 0x4a90e2, shininess: 70 });
+            const headMesh = new THREE.Mesh(headGeometry, headMaterial);
             headGroup.add(headMesh);
-            
             scene.add(headGroup);
-            
-            // Store reference for rotation
-            headMesh = headGroup;
-            
-            // Add reference axes - normal orientation
+
             const axesHelper = new THREE.AxesHelper(2);
             scene.add(axesHelper);
-            
-            // Add ground plane for reference
+
             const planeGeometry = new THREE.PlaneGeometry(10, 10);
-            const planeMaterial = new THREE.MeshPhongMaterial({ 
-                color: 0xcccccc,
-                side: THREE.DoubleSide
-            });
+            const planeMaterial = new THREE.MeshPhongMaterial({ color: 0xd0d0d0, side: THREE.DoubleSide });
             const plane = new THREE.Mesh(planeGeometry, planeMaterial);
             plane.rotation.x = -Math.PI / 2;
             plane.position.y = -2;
             scene.add(plane);
-            
-            // Initial render
+
             renderer.render(scene, camera);
+            return { scene, camera, renderer, headGroup };
         }
-        
-        // Setup charts
-        function setupCharts() {
-            // Destroy existing charts if they exist
-            Object.values(charts).forEach(chart => {
-                if (chart) {
-                    chart.destroy();
-                }
-            });
-            charts = {};
-            
-            const chartOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time (s)'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Value'
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
-            };
-            
-            // Create charts for each DOF
-            const chartConfigs = [
-                { id: 'xChart', label: 'X Position', data: trackIRData.map(d => d.x) },
-                { id: 'yChart', label: 'Y Position', data: trackIRData.map(d => d.y) },
-                { id: 'zChart', label: 'Z Position', data: trackIRData.map(d => d.z) },
-                { id: 'pitchChart', label: 'Pitch', data: trackIRData.map(d => d.pitch) },
-                { id: 'yawChart', label: 'Yaw', data: trackIRData.map(d => d.yaw) },
-                { id: 'rollChart', label: 'Roll', data: trackIRData.map(d => d.roll) }
-            ];
-            
-            chartConfigs.forEach(config => {
-                const ctx = document.getElementById(config.id).getContext('2d');
-                
-                // Create time labels
-                let timeLabels = [];
-                if (trackIRData.length > 0) {
-                    const baseTime = trackIRData[0].timestamp;
-                    timeLabels = trackIRData.map(d => (d.timestamp - baseTime).toFixed(2));
-                } else {
-                    timeLabels = Array(100).fill(0).map((_, i) => (i * 0.04).toFixed(2));
-                }
-                
-                // Create dataset with actual data or empty data
-                const datasetData = config.data.length > 0 ? config.data : Array(100).fill(0);
-                
-                charts[config.id] = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: timeLabels,
-                        datasets: [{
-                            label: config.label,
-                            data: datasetData,
-                            borderColor: 'rgb(75, 192, 192)',
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            borderWidth: 1,
-                            pointRadius: 0,
-                            fill: false
-                        }]
-                    },
-                    options: {
-                        ...chartOptions,
-                        scales: {
-                            ...chartOptions.scales,
-                            y: {
-                                ...chartOptions.scales.y,
-                                title: {
-                                    display: true,
-                                    text: config.label
-                                },
-                                min: config.data.length > 0 ? Math.min(...config.data) - 1 : 0,
-                                max: config.data.length > 0 ? Math.max(...config.data) + 1 : 10
-                            }
-                        }
-                    }
-                });
-            });
+
+        function updateHeadPosition(headScene, pose) {
+            if (!headScene) return;
+            headScene.headGroup.position.x = Number.isFinite(pose.x) ? pose.x : 0;
+            headScene.headGroup.position.y = Number.isFinite(pose.y) ? pose.y - 1 : -1;
+            headScene.headGroup.position.z = Number.isFinite(pose.z) ? pose.z : 0;
+            headScene.headGroup.rotation.x = Number.isFinite(pose.pitch) ? pose.pitch * Math.PI / 180 : 0;
+            headScene.headGroup.rotation.y = Number.isFinite(pose.yaw) ? pose.yaw * Math.PI / 180 : 0;
+            headScene.headGroup.rotation.z = Number.isFinite(pose.roll) ? pose.roll * Math.PI / 180 : 0;
+            headScene.renderer.render(headScene.scene, headScene.camera);
         }
-        
-        // Setup controls
+
         function setupControls() {
             const startBtn = document.getElementById('startBtn');
             const stopBtn = document.getElementById('stopBtn');
             const resetBtn = document.getElementById('resetBtn');
             
             startBtn.addEventListener('click', () => {
-                if (!isPlaying) {
+                if (!isPlaying && senseMatData.length > 0) {
                     isPlaying = true;
                     playInterval = setInterval(() => {
-                        currentTimeIndex++;
-                        if (currentTimeIndex >= Math.max(senseMatData.length, trackIRData.length)) {
-                            currentTimeIndex = 0;
-                        }
+                        currentTimeIndex = (currentTimeIndex + 1) % senseMatData.length;
                         updateVisualization(currentTimeIndex);
-                    }, 40); // 25 FPS
+                    }, 100);
                 }
             });
-            
+
             stopBtn.addEventListener('click', () => {
                 isPlaying = false;
                 if (playInterval) {
@@ -882,7 +706,7 @@
                     playInterval = null;
                 }
             });
-            
+
             resetBtn.addEventListener('click', () => {
                 isPlaying = false;
                 if (playInterval) {
@@ -893,141 +717,65 @@
                 updateVisualization(0);
             });
         }
-        
-        // Update visualization
+
         function updateVisualization(index) {
-            console.log(`Updating visualization for index: ${index}`);
-            console.log(`SenseMat data length: ${senseMatData.length}`);
-            console.log(`TrackIR data length: ${trackIRData.length}`);
-            
-            // Update time display
-            let currentTime = 0;
-            let baseTime = 0;
-            
-            if (senseMatData.length > 0) {
-                baseTime = senseMatData[0].timestamp;
-                if (senseMatData[index]) {
-                    currentTime = senseMatData[index].timestamp;
-                }
-            } else if (trackIRData.length > 0) {
-                baseTime = trackIRData[0].timestamp;
-                if (trackIRData[index]) {
-                    currentTime = trackIRData[index].timestamp;
-                }
+            if (senseMatData.length === 0) return;
+            const frame = senseMatData[index];
+            const elapsed = (frame.timestamp - senseMatData[0].timestamp).toFixed(3);
+            document.getElementById('timeDisplay').textContent = `Time: ${elapsed}s`;
+            document.getElementById('frameCounter').textContent = `Frame: ${index + 1} / ${senseMatData.length}`;
+            updatePressureGrid(frame.sensorData);
+
+            if (JSON.stringify(frame.actual) !== JSON.stringify(frame.predicted)) {
+                console.warn('Frame actual/predicted mismatch at index', index, frame.actual, frame.predicted);
             }
-            
-            const elapsedTime = (currentTime - baseTime).toFixed(3);
-            document.getElementById('timeDisplay').textContent = `Time: ${elapsedTime}s`;
-            
-            // Update pressure grid
-            if (senseMatData[index] && senseMatData[index].sensorData) {
-                console.log(`Updating pressure grid with ${senseMatData[index].sensorData.length} values`);
-                updatePressureGrid(senseMatData[index].sensorData);
-            } else {
-                console.log('No SenseMat data available for this index');
-            }
-            
-            // Update head position
-            if (trackIRData[index]) {
-                console.log(`Updating head position:`, trackIRData[index]);
-                updateHeadPosition(trackIRData[index]);
-                updateChartIndicators(index);
-            } else {
-                console.log('No TrackIR data available for this index');
-            }
+
+            updateHeadPosition(actualHead, frame.actual);
+            updateHeadPosition(predictedHead, frame.predicted);
         }
-        
-        // Update pressure grid visualization
+
         function updatePressureGrid(sensorData) {
-            // Keep colorbar static to show real pressure changes
             document.getElementById('minValue').textContent = globalMinValue.toFixed(0);
             document.getElementById('maxValue').textContent = globalMaxValue.toFixed(0);
-            
-            // Use global range for consistent coloring
             const range = globalMaxValue - globalMinValue || 1;
-            
             sensorData.forEach((value, i) => {
                 const cell = document.getElementById(`cell-${i}`);
-                if (cell) {
-                    const normalized = (value - globalMinValue) / range;
-                    const color = getColorForValue(normalized);
-                    cell.style.backgroundColor = color;
-                }
+                if (!cell) return;
+                const normalized = (value - globalMinValue) / range;
+                cell.style.backgroundColor = getColorForValue(normalized);
+                cell.textContent = Number.isFinite(value) ? value.toFixed(0) : '';
             });
         }
-        
-        // Get color for normalized value (0-1)
+
         function getColorForValue(normalized) {
-            const clampedValue = Math.max(0, Math.min(1, normalized));
-            
-            // Use logarithmic scale for better pressure visibility
-            const logValue = Math.pow(clampedValue, 0.5); // Square root for better contrast
-            const intensity = Math.round(logValue * 255);
-            return `rgb(${intensity}, 0, 0)`;
+            const clamped = Math.max(0, Math.min(1, normalized));
+            const hue = (1 - clamped) * 240; // blue at low values, red at high values
+            return `hsl(${hue}, 100%, 50%)`;
         }
-        
-        // Update head position and rotation
-        function updateHeadPosition(trackIRData) {
-            if (!headMesh) return;
-            
-            // Scale positions for visibility
-            const scale = 0.01;
-            headMesh.position.x = trackIRData.x * scale;
-            headMesh.position.y = trackIRData.y * scale;
-            headMesh.position.z = trackIRData.z * scale;
-            
-            // Convert degrees to radians
-            const pitchRad = trackIRData.pitch * Math.PI / 180;
-            const yawRad = trackIRData.yaw * Math.PI / 180;
-            const rollRad = trackIRData.roll * Math.PI / 180;
-            
-            // Apply rotations to the group
-            headMesh.rotation.x = pitchRad;
-            headMesh.rotation.y = yawRad;
-            headMesh.rotation.z = rollRad;
-            
-            renderer.render(scene, camera);
-        }
-        
-        // Update chart indicators
-        function updateChartIndicators(index) {
-            Object.values(charts).forEach(chart => {
-                if (chart && chart.data && chart.data.datasets[0]) {
-                    // Update chart to show current position
-                    chart.update('none');
-                }
-            });
-        }
-        
-        // Update progress bar
+
         function updateProgress(percent, message) {
-            const progressFill = document.getElementById('progressFill');
-            const loadingDetails = document.getElementById('loadingDetails');
-            
-            progressFill.style.width = percent + '%';
-            loadingDetails.textContent = message;
+            document.getElementById('progressFill').style.width = `${percent}%`;
+            document.getElementById('loadingDetails').textContent = message;
         }
-        
-        // Update status message
+
         function updateStatus(message) {
             document.getElementById('statusBar').textContent = message;
         }
-        
-        // Initialize when page loads
+
         window.addEventListener('load', init);
-        
-        // Handle window resize for 3D visualization
         window.addEventListener('resize', () => {
-            if (camera && renderer) {
-                const container = document.getElementById('headCanvas');
-                const width = container.clientWidth;
-                const height = 280;
-                
-                camera.aspect = width / height;
-                camera.updateProjectionMatrix();
-                renderer.setSize(width, height);
-                renderer.render(scene, camera);
-            }
+            ['actualCanvas', 'predictedCanvas'].forEach((containerId) => {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+                const headScene = containerId === 'actualCanvas' ? actualHead : predictedHead;
+                if (!headScene) return;
+                const width = container.clientWidth || 320;
+                const height = 360;
+                headScene.camera.aspect = width / height;
+                headScene.camera.updateProjectionMatrix();
+                headScene.renderer.setSize(width, height);
+                headScene.renderer.render(headScene.scene, headScene.camera);
+            });
         });
     </script>
 </body>
