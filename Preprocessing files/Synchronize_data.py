@@ -38,7 +38,7 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     synced_df.insert(0, 'Unix_Timestamp', sensemat_times)
 
     # Find the timestamp where we reset the TrackIR data to zero (approximately zero)
-    TrackIR_reset_row = synced_df[(abs(synced_df['X']) < 0.001) & (abs(synced_df['Y']) < 0.001) & (abs(synced_df['Z']) < 0.001) & (abs(synced_df['Pitch']) < 0.001) & (abs(synced_df['Yaw']) < 0.001) & (abs(synced_df['Roll']) < 0.001)].iloc[0]
+    TrackIR_reset_row = synced_df[(abs(synced_df['Pitch']) < 0.001) & (abs(synced_df['Yaw']) < 0.001) & (abs(synced_df['Roll']) < 0.001)].iloc[0]
     TrackIR_rest_Unix = TrackIR_reset_row["Unix_Timestamp"]
 
     # Find the end of the recording, i.e. the minimum last timestamp between TrackIR and SenseMat
@@ -71,6 +71,6 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
 
 if __name__ == "__main__":
-    trackir_file_path = "recordings\\pn01\\20260508_100335_trackir_data_subject1_run1.csv"
-    sensemat_file_path = "Preprocessing files\\20260508T100343-head-sensemat-serial-log-subject1-run1_processed.csv"
+    sensemat_file_path = "recordings\\pn08\\processed_sensemat_data\\20260511T163401-head-sensemat-subject8-run1_processed.csv"
+    trackir_file_path = "recordings\\pn08\\20260511_163351_trackir_data_subject8_run1.csv"
     sync_trackir_data(trackir_file_path, sensemat_file_path)
