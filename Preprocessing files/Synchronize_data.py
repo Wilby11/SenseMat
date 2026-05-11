@@ -38,7 +38,7 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     synced_df.insert(0, 'Unix_Timestamp', sensemat_times)
 
     # Find the timestamp where we reset the TrackIR data to zero (approximately zero)
-    TrackIR_reset_row = synced_df[(abs(synced_df['Pitch']) < 0.001) & (abs(synced_df['Yaw']) < 0.001) & (abs(synced_df['Roll']) < 0.001)].iloc[0]
+    TrackIR_reset_row = trackir_df[(abs(trackir_df['Pitch']) < 0.001) & (abs(trackir_df['Yaw']) < 0.001) & (abs(trackir_df['Roll']) < 0.001)].iloc[0]
     TrackIR_rest_Unix = TrackIR_reset_row["Unix_Timestamp"]
 
     # Find the end of the recording, i.e. the minimum last timestamp between TrackIR and SenseMat
