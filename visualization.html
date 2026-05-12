@@ -29,10 +29,10 @@
         
         .main-content {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: 0.9fr 1.4fr 1.4fr;
             gap: 30px;
             margin-bottom: 30px;
-            min-height: 400px;
+            min-height: 450px;
         }
         
         .left-panel {
@@ -97,24 +97,7 @@
             width: 180px;
             height: 20px;
             margin: 0 auto 5px;
-            background: linear-gradient(to right, 
-                rgb(0, 0, 0), 
-                rgb(16, 0, 0), 
-                rgb(32, 0, 0), 
-                rgb(48, 0, 0), 
-                rgb(64, 0, 0), 
-                rgb(80, 0, 0), 
-                rgb(96, 0, 0), 
-                rgb(112, 0, 0), 
-                rgb(128, 0, 0), 
-                rgb(144, 0, 0), 
-                rgb(160, 0, 0), 
-                rgb(176, 0, 0), 
-                rgb(192, 0, 0), 
-                rgb(208, 0, 0), 
-                rgb(224, 0, 0), 
-                rgb(240, 0, 0), 
-                rgb(255, 0, 0));
+            background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
             border: 1px solid #333;
             border-radius: 3px;
         }
@@ -134,8 +117,11 @@
             border-radius: 5px;
             padding: 10px;
             margin-bottom: 20px;
-            width: 300px;
-            height: 400px;
+            width: 460px;
+            min-width: 100%;
+            height: 520px;
+            min-height: 520px;
+            max-width: 100%;
         }
         
         .controls {
@@ -583,20 +569,6 @@
                     roll: parseFloat(values[headerIndex['predicted_roll']])
                 };
 
-                if (
-                    actual.x === predicted.x &&
-                    actual.y === predicted.y &&
-                    actual.z === predicted.z &&
-                    actual.roll === predicted.roll &&
-                    actual.pitch === predicted.yaw &&
-                    actual.yaw === predicted.pitch
-                ) {
-                    const correctedYaw = predicted.yaw;
-                    predicted.yaw = predicted.pitch;
-                    predicted.pitch = correctedYaw;
-                    console.log(`Row ${lineIndex}: swapped predicted pitch/yaw to match actual`, predicted);
-                }
-
                 console.log(`Row ${lineIndex}:`, { timestamp, actual, predicted });
                 data.push({ timestamp, sensorData, actual, predicted });
             }
@@ -632,13 +604,14 @@
             const container = document.getElementById(containerId);
             container.innerHTML = '';
             const width = container.clientWidth || 320;
-            const height = 360;
+            const height = container.clientHeight || 440;
 
             const scene = new THREE.Scene();
             scene.background = new THREE.Color(0xf8f8f8);
 
             const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-            camera.position.set(1.5, 1.2, 3);
+            camera.position.set(3, 3, 6);
+            camera.up.set(0, 1, 0);
             camera.lookAt(0, 0, 0);
 
             const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -653,33 +626,80 @@
             scene.add(directionalLight);
 
             const headGroup = new THREE.Group();
-            const headGeometry = new THREE.BoxGeometry(1, 1.2, 0.8);
-            const headMaterial = new THREE.MeshPhongMaterial({ color: 0x4a90e2, shininess: 70 });
-            const headMesh = new THREE.Mesh(headGeometry, headMaterial);
-            headGroup.add(headMesh);
+            const headMaterial = new THREE.MeshPhongMaterial({ color: 0x7f8c8d, shininess: 30 });
+
+            const skull = new THREE.Mesh(new THREE.SphereGeometry(0.7, 28, 28), headMaterial);
+            skull.position.y = 0.25;
+            headGroup.add(skull);
+
+            const chin = new THREE.Mesh(new THREE.SphereGeometry(0.45, 24, 24), headMaterial);
+            chin.scale.set(1, 0.7, 1);
+            chin.position.set(0, -0.35, 0);
+            headGroup.add(chin);
+
+            const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.6, 24), headMaterial);
+            neck.position.set(0, -0.95, 0);
+            headGroup.add(neck);
+
+            const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), headMaterial);
+            leftEar.position.set(-0.64, 0.25, 0);
+            headGroup.add(leftEar);
+
+            const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), headMaterial);
+            rightEar.position.set(0.64, 0.25, 0);
+            headGroup.add(rightEar);
+
             scene.add(headGroup);
 
-            const axesHelper = new THREE.AxesHelper(2);
+            const axesHelper = new THREE.AxesHelper(3.0);
             scene.add(axesHelper);
 
             const planeGeometry = new THREE.PlaneGeometry(10, 10);
             const planeMaterial = new THREE.MeshPhongMaterial({ color: 0xd0d0d0, side: THREE.DoubleSide });
             const plane = new THREE.Mesh(planeGeometry, planeMaterial);
             plane.rotation.x = -Math.PI / 2;
-            plane.position.y = -2;
+            plane.position.y = -4;
             scene.add(plane);
+
+            // Axis labels for X, Y, Z
+            scene.add(createAxisLabel('X', '#ff0000', 3.3, 0, 0));
+            scene.add(createAxisLabel('Y', '#00ff00', 0, 3.3, 0));
+            scene.add(createAxisLabel('Z', '#0000ff', 0, 0, 3.3));
 
             renderer.render(scene, camera);
             return { scene, camera, renderer, headGroup };
         }
 
+        function createAxisLabel(text, color, x, y, z) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 220;
+            canvas.height = 70;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '28px Arial';
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(0.5, 0.16, 1);
+            sprite.position.set(x, y, z);
+            return sprite;
+        }
+
         function updateHeadPosition(headScene, pose) {
             if (!headScene) return;
             headScene.headGroup.position.x = Number.isFinite(pose.x) ? pose.x : 0;
-            headScene.headGroup.position.y = Number.isFinite(pose.y) ? pose.y - 1 : -1;
+            headScene.headGroup.position.y = Number.isFinite(pose.y) ? pose.y : 0;
             headScene.headGroup.position.z = Number.isFinite(pose.z) ? pose.z : 0;
-            headScene.headGroup.rotation.x = Number.isFinite(pose.pitch) ? pose.pitch * Math.PI / 180 : 0;
-            headScene.headGroup.rotation.y = Number.isFinite(pose.yaw) ? pose.yaw * Math.PI / 180 : 0;
+            headScene.headGroup.rotation.x = Number.isFinite(pose.yaw) ? pose.yaw * Math.PI / 180 : 0;
+            headScene.headGroup.rotation.y = Number.isFinite(pose.pitch) ? pose.pitch * Math.PI / 180 : 0;
             headScene.headGroup.rotation.z = Number.isFinite(pose.roll) ? pose.roll * Math.PI / 180 : 0;
             headScene.renderer.render(headScene.scene, headScene.camera);
         }
