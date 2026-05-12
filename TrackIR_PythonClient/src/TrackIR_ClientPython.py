@@ -17,6 +17,7 @@ import tkinter as tk
 from tkinter import simpledialog
 
 import time
+import os 
 from datetime import datetime
 
 # If you were one of the few given an app key, please read the documentation about using app keys
@@ -277,20 +278,27 @@ class cHeadTrackingGUI:
             # subject_number = 1, run_number = 3
             # recording_name = subject01_run03
             if subject_number and run_number:
-                subject_clean = subject_number.strip().zfill(2)
-                run_clean = run_number.strip().zfill(2)
+                subject_clean = safe_filename(subject_number.strip())
+                run_clean = safe_filename(run_number.strip())
+                participant_folder = f"pn{subject_clean.zfill(2)}"
                 recording_name = f"subject{subject_clean}_run{run_clean}"
             else:
+                participant_folder = ""
                 recording_name = ""
 
-            recording_name = safe_filename(recording_name)
-
             if recording_name:
-                dynamic_filename = f"{file_timestamp}_{recording_name}_trackir_data.csv"
+                 dynamic_filename = f"{file_timestamp}_trackir_data_{recording_name}.csv"
             else:
                 dynamic_filename = f"{file_timestamp}_trackir_data.csv"
+            if participant_folder:
+                output_folder = os.path.join("recordings", participant_folder)
+            else:
+                output_folder = "recordings"
+            
+            os.makedirs(output_folder, exist_ok=True)
+            output_path = os.path.join(output_folder, dynamic_filename)
 
-            with open(dynamic_filename, mode='w', newline='') as file:
+            with open(output_path, mode='w', newline='') as file:
                 import csv
                 writer = csv.writer(file, delimiter=";")
 
@@ -311,8 +319,8 @@ class cHeadTrackingGUI:
                 # Write all the data points collected in the list
                 writer.writerows(self.recorded_data)
 
-            print(f"Successfully saved {len(self.recorded_data)} frames to {dynamic_filename}!")
-
+            print(f"Successfully saved {len(self.recorded_data)} frames to {output_path}!")
+            
         except Exception as e:
             print(f"There was an error saving the CSV: {e}")
 
