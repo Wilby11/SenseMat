@@ -101,6 +101,15 @@ app = socketio.ASGIApp(
 )
 ws_task:Thread = None
 serial_data = {}
+def safe_filename(name):
+    """Clean recording name so it can safely be used in a filename."""
+    if not name:
+        return ""
+
+    return "".join(
+        character if character.isalnum() or character in ("-", "_") else "_"
+        for character in name.strip()
+    ).strip("_")
 
 async def save_configuration(config_data):
     """Store configuration for later re-use."""
@@ -187,11 +196,17 @@ async def fetch_samples_from_serial_task(serial_port, serial_identifier, configu
         except Exception as msg:
             logger.exception(msg)
             break
-
         if requestRecordingData.value and not recording_data:
             recording_data = True
             start_time = datetime.now().strftime("%Y%m%dT%H%M%S")
-            filename = f"{start_time}-{serial_identifier}-sensemat-serial-log.csv"
+
+            recording_name = safe_filename(recordingName.value)
+
+            if recording_name:
+                filename = f"{start_time}-{recording_name}-{serial_identifier}-sensemat-serial-log.csv"
+            else:
+                filename = f"{start_time}-{serial_identifier}-sensemat-serial-log.csv"
+
             # configuration = await load_configuration()
             log_file = create_logfile(
                 filename, len(row), configuration, serial_identifier
@@ -240,9 +255,15 @@ async def end_recording(sid):
 
 
 @sio.event
-async def start_recording(sid):
+async def start_recording(sid, data=None):
     """Start recording sensemat data."""
     logger.info("Recording requested")
+
+    if isinstance(data, dict):
+        recordingName.value = safe_filename(data.get("recording_name", ""))
+    else:
+        recordingName.value = ""
+
     await reconnect(sid)
     requestRecordingData.value = True
 
