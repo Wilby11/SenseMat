@@ -3,5 +3,5 @@
   "age": 21,
   "height": 1.83,
   "weight": 60,
-  "head_circumference": 59
+  "head_circumference": 59.0
 }
