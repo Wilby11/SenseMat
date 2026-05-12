@@ -312,5 +312,6 @@ if __name__ == "__main__":
     m = multiprocessing.Manager()
     backgroundTaskStarted = m.Value(bool, False)
     requestRecordingData = m.Value(bool, False)
+    recordingName = m.Value(str, "")
     serial_data = m.Value({}, {})
     uvicorn.run(app, host="127.0.0.1", port=42000)
