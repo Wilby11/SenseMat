@@ -14,6 +14,7 @@ import NPClientWraps as npc
 from NPClient import *
 
 import tkinter as tk
+from tkinter import simpledialog
 
 import time
 from datetime import datetime
@@ -22,6 +23,15 @@ from datetime import datetime
 # developer ID provided by NaturalPoint for your game/app. The SDK developer ID is available to everyone.
 NP_DEVELOPER_ID = 1000        #== Developer ID =============--
 
+def safe_filename(name):
+    """Clean recording name so it can safely be used in a filename."""
+    if not name:
+        return ""
+
+    return "".join(
+        character if character.isalnum() or character in ("-", "_") else "_"
+        for character in name.strip()
+    ).strip("_")
 class cHeadTrackingGUI:
 
     # create GUI
@@ -241,19 +251,49 @@ class cHeadTrackingGUI:
         npc.UnregisterWindowHandle()
 
         try:
-            # Generate a clean timestamp string from the recording start time (YearMonthDay_HourMinuteSecond)
+            # Generate a clean timestamp string from the recording start time
+            # Format: YearMonthDay_HourMinuteSecond
             if self.recording_start_datetime is not None:
                 file_timestamp = self.recording_start_datetime.strftime("%Y%m%d_%H%M%S")
             else:
                 # Fallback to current time if no recording was made
                 file_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # Insert that timestamp into the file name
-            dynamic_filename = f"{file_timestamp}_trackir_data.csv"
+
+            # Ask only for subject number and run number
+            subject_number = simpledialog.askstring(
+                "Subject number",
+                "Subject number:",
+                parent=self.master
+            )
+
+            run_number = simpledialog.askstring(
+                "Run number",
+                "Run number:",
+                parent=self.master
+            )
+
+            # Build the recording name automatically
+            # Example:
+            # subject_number = 1, run_number = 3
+            # recording_name = subject01_run03
+            if subject_number and run_number:
+                subject_clean = subject_number.strip().zfill(2)
+                run_clean = run_number.strip().zfill(2)
+                recording_name = f"subject{subject_clean}_run{run_clean}"
+            else:
+                recording_name = ""
+
+            recording_name = safe_filename(recording_name)
+
+            if recording_name:
+                dynamic_filename = f"{file_timestamp}_{recording_name}_trackir_data.csv"
+            else:
+                dynamic_filename = f"{file_timestamp}_trackir_data.csv"
+
             with open(dynamic_filename, mode='w', newline='') as file:
                 import csv
                 writer = csv.writer(file, delimiter=";")
-                
+
                 # Write the header row so you know what each column is later
                 writer.writerow([
                     'Record_num',
@@ -267,14 +307,14 @@ class cHeadTrackingGUI:
                     'Yaw',
                     'Roll'
                 ])
-                
-                # Write all the data points we collected in the list
+
+                # Write all the data points collected in the list
                 writer.writerows(self.recorded_data)
-                
+
             print(f"Successfully saved {len(self.recorded_data)} frames to {dynamic_filename}!")
+
         except Exception as e:
             print(f"There was an error saving the CSV: {e}")
-
 
         self.master.destroy()
 

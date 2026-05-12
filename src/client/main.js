@@ -233,9 +233,35 @@ function update_config() {
 
 function start_recording() {
   fileText.innerText = "";
+
   if (socket?.connected) {
+    const subjectNumber = prompt("Subject number:", "");
+
+    if (subjectNumber === null) {
+      recording = false;
+      recordingLabel.innerText = "Start recording";
+      recordingButton.classList.remove("signal-error");
+      recordingButton.classList.add("signal-success");
+      return;
+    }
+
+    const runNumber = prompt("Run number:", "");
+
+    if (runNumber === null) {
+      recording = false;
+      recordingLabel.innerText = "Start recording";
+      recordingButton.classList.remove("signal-error");
+      recordingButton.classList.add("signal-success");
+      return;
+    }
+
+    const subjectClean = subjectNumber.trim().padStart(2, "0");
+    const runClean = runNumber.trim().padStart(2, "0");
+
+    const recordingName = `subject${subjectClean}_run${runClean}`;
+
     recording = true;
-    socket.emit("start_recording");
+    socket.emit("start_recording", { recording_name: recordingName });
   }
 }
 
