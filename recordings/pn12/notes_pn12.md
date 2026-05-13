@@ -1,4 +1,4 @@
-# Subject 12: Pablo P
+# Subject 12
 - Head circumference: 57cm 
 - Max range:
     - Left 58.6 deg
