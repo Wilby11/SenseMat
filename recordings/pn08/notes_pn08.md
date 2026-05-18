@@ -5,7 +5,7 @@
     - Left 63.5 deg
     - Right -63.7 deg
 
-> metadata has to be fixed 
+> metadata has to be fixed in file
 
 ## Run 1: Slow movements
 - 
