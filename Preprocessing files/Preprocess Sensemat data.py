@@ -300,6 +300,89 @@ def count_commas_per_line(path):
 
     return pd.DataFrame(results)
 
+
+def preprocess_sensemat_file(input_path, expected_fields=150, mean_mode="floor", interpolation_method="linear"):
+    """
+    Preprocess a SenseMat CSV file: validate and repair bad rows (in-memory only, no file output).
+    
+    Args:
+        input_path (str or Path): Path to the input SenseMat CSV file
+        expected_fields (int): Expected number of fields per row (default: 150)
+        mean_mode (str): Mode for calculating S_mean ("floor" or other). Default: "floor"
+        interpolation_method (str): Interpolation method for repairs ("linear" or other). Default: "linear"
+    
+    Returns:
+        pd.DataFrame: The repaired and processed dataframe
+    """
+    input_path_obj = Path(input_path)
+    
+    print(f"Preprocessing SenseMat file: {input_path_obj.name}")
+    
+    # Step 1: Inspect comma counts
+    print("  Step 1: Checking comma counts...")
+    comma_df = count_commas_per_line(str(input_path))
+    comma_summary = comma_df["comma_count"].value_counts().sort_index()
+    print(f"    Comma counts: {dict(comma_summary.head(3))}")
+    
+    # Step 2: Load and validate data
+    print("  Step 2: Parsing and validating data...")
+    config, header, df, comma_counts, field_counts = parse_sensemat_file(str(input_path))
+    df = add_validation_columns(df, comma_counts, field_counts, expected_fields, mean_mode)
+    
+    print(f"    Total rows: {len(df)}")
+    print(f"    S_mean matches: {df['S_mean_match'].sum()}")
+    print(f"    Length mismatches: {(~df['length_match']).sum()}")
+    print(f"    Comma mismatches: {(~df['comma_match']).sum()}")
+    
+    # Step 3: Repair bad rows (inline, without saving to file)
+    print("  Step 3: Repairing bad rows...")
+    
+    # Mark rows that fail at least one of the checks
+    df["bad"] = (~df["S_mean_match"]) | (~df["comma_match"]) | (~df["length_match"])
+    
+    # We only interpolate numeric columns
+    s_cols = get_s_columns(df)
+    
+    clean = df.copy()
+    clean[s_cols] = clean[s_cols].astype(float)
+    
+    # Remove values in bad rows so interpolation can fill them in
+    clean.loc[df["bad"], s_cols] = np.nan
+    
+    # Fill missing values using interpolation based on surrounding rows
+    clean["B_TIME_sec"] = clean["B_TIME"] / 1_000_000
+    clean = clean.set_index("B_TIME_sec")
+    
+    clean[s_cols] = clean[s_cols].interpolate(method="index", limit_direction="both")
+    
+    clean = clean.reset_index()
+    
+    # After interpolation, update the columns that depend on the sensor values
+    new_cols = pd.DataFrame({
+        "S_mean": calculate_s_mean(clean, mean_mode),
+        "S_mean_calc_raw": clean[s_cols].mean(axis=1),
+        "S_mean_calc": calculate_s_mean(clean, mean_mode),
+        "comma_count": df["comma_count"].values,
+        "comma_match": df["comma_match"].values,
+        "field_count": df["field_count"].values,
+        "length_match": df["length_match"].values,
+    })
+    new_cols["S_mean_match"] = new_cols["S_mean_calc"] == new_cols["S_mean"]
+    clean = pd.concat([clean, new_cols], axis=1)
+    
+    print(f"    ✓ Data repaired in-memory (no file saved)")
+    
+    # Step 4: Evaluate timing (40 Hz check)
+    print("  Step 4: Evaluating frequency...")
+    try:
+        recv_time_stats = evaluate_40hz(clean, col="RECV_TIME", plot=False)
+        print(f"    RECV_TIME frequency: {recv_time_stats.get('mean_hz', 'N/A'):.1f} Hz (mean)")
+    except Exception as e:
+        print(f"    Could not evaluate RECV_TIME: {e}")
+    
+    return clean
+
+
 if __name__ == "__main__":
     """
     Simple entry point so you can run this file directly.
@@ -309,7 +392,7 @@ if __name__ == "__main__":
     """
 
     # ---- SETTINGS ----
-    input_path = "../recordings/Recorded data 22-04/20260422T120945-head-sensemat-serial-log_(WilburLong).csv"
+    input_path = "recordings\\pn07\\20260508T123937-head-sensemat-serial-log-subject7-run1.csv"
     input_path_obj = Path(input_path)
 
     output_dir = input_path_obj.parent / "processed_sensemat_data"

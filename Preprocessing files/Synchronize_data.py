@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from scipy.interpolate import interp1d
 
-def sync_trackir_data(trackir_filepath, sensemat_filepath):    
+def sync_trackir_data(trackir_filepath, sensemat_filepath, subject, run, output_dir=None):    
     # Load the CSV file containing the raw TrackIR data
     trackir_df = pd.read_csv(trackir_filepath, sep=';')
 
@@ -11,9 +11,13 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     trackir_times = trackir_df['Unix_Timestamp'].values
     trackir_data = trackir_df[['X', 'Y', 'Z', 'Pitch', 'Yaw', 'Roll']].values
 
-    # Load the CSV file containing the raw SenseMat data
-    # - Skip the config row (1st line), but keep the header (2nd line) for column names
-    sensemat_df = pd.read_csv(sensemat_filepath, sep=",", comment="#", header=0, usecols=[0]+list(range(3,131)), low_memory=False)
+    # Load the SenseMat data: accept either a file path or a DataFrame
+    if isinstance(sensemat_filepath, str):
+        # Load from CSV file
+        sensemat_df = pd.read_csv(sensemat_filepath, sep=",", comment="#", header=0, usecols=[0]+list(range(3,131)), low_memory=False)
+    else:
+        # Assume it's already a DataFrame (in-memory)
+        sensemat_df = sensemat_filepath
 
     # Extract the target timestamps we want to align to
     sensemat_times = sensemat_df["RECV_TIME"].dropna().values
@@ -38,7 +42,7 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     synced_df.insert(0, 'Unix_Timestamp', sensemat_times)
 
     # Find the timestamp where we reset the TrackIR data to zero (approximately zero)
-    TrackIR_reset_row = trackir_df[(abs(trackir_df['Pitch']) < 0.001) & (abs(trackir_df['Yaw']) < 0.001) & (abs(trackir_df['Roll']) < 0.001)].iloc[0]
+    TrackIR_reset_row = trackir_df[(abs(trackir_df['Roll']) < 0.0005)].iloc[0]
     TrackIR_rest_Unix = TrackIR_reset_row["Unix_Timestamp"]
 
     # Find the end of the recording, i.e. the minimum last timestamp between TrackIR and SenseMat
@@ -50,25 +54,41 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath):
     # Remove all data points before the reset for SenseMat
     sensemat_trimmed = sensemat_df[(sensemat_df["RECV_TIME"] >= TrackIR_rest_Unix) & (sensemat_df["RECV_TIME"] <= end_timestamp)]
 
-    # Save both to 'Synched data' folder in the global repository with SenseMat-based filenames
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    synched_dir = os.path.join(script_dir, '..', 'Synched data')
-    os.makedirs(synched_dir, exist_ok=True)
+    if output_dir is not None:
+        os.makedirs(output_dir, exist_ok=True)
+        trackir_output = os.path.join(output_dir, f"subject{subject}_run{run}_trackir.csv")
+        sensemat_output = os.path.join(output_dir, f"subject{subject}_run{run}_sensemat.csv") 
+        
+        # Save the synced data to the provided output directory
+        trackir_synched_trimmed.to_csv(trackir_output, sep=';', index=False)
+        sensemat_trimmed.to_csv(sensemat_output, index=False)
+        
+        print(f"Success! Synced TrackIR data saved to {trackir_output}.")
+        print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
+    # else:
+    #     # Save both to 'Synched data' folder in the global repository with SenseMat-based filenames
+    #     script_dir = os.path.dirname(os.path.abspath(__file__))
+    #     synched_dir = os.path.join(script_dir, '..', 'Synched data')
+    #     os.makedirs(synched_dir, exist_ok=True)
 
-    # Extract the timestamp prefix from SenseMat filename (everything before '-head-sensemat')
-    sensemat_base = os.path.basename(sensemat_filepath)
-    prefix = sensemat_base.split('-head-sensemat')[0]
+    #     # Extract the timestamp prefix from SenseMat filename (only if sensemat_filepath is a string)
+    #     if isinstance(sensemat_filepath, str):
+    #         sensemat_base = os.path.basename(sensemat_filepath)
+    #         prefix = sensemat_base.split('-head-sensemat')[0]
+    #     else:
+    #         # For DataFrames, use a generic name or timestamp-based name
+    #         prefix = "sensemat_synched"
 
-    # TrackIR output
-    trackir_output = os.path.join(synched_dir, f"{prefix}_trackir_synched.csv")
-    trackir_synched_trimmed.to_csv(trackir_output, sep=';', index=False)
+    #     # TrackIR output
+    #     trackir_output = os.path.join(synched_dir, f"{prefix}_trackir_synched.csv")
+    #     trackir_synched_trimmed.to_csv(trackir_output, sep=';', index=False)
 
-    # SenseMat output
-    sensemat_output = os.path.join(synched_dir, f"{prefix}_sensemat_synched.csv")
-    sensemat_trimmed.to_csv(sensemat_output, index=False)
+    #     # SenseMat output
+    #     sensemat_output = os.path.join(synched_dir, f"{prefix}_sensemat_synched.csv")
+    #     sensemat_trimmed.to_csv(sensemat_output, index=False)
 
-    print(f"Success! Synced TrackIR data saved to {trackir_output}.")
-    print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
+    #     print(f"Success! Synced TrackIR data saved to {trackir_output}.")
+    #     print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
 
 if __name__ == "__main__":
     sensemat_file_path = "recordings\\pn08\\processed_sensemat_data\\20260511T163401-head-sensemat-subject8-run1_processed.csv"
