@@ -110,6 +110,7 @@ def preprocess_participant_data(participant_folder):
 
 
 ###################################
+
 def log_scale_data():
     """This function normalizes the cleaned sensemat data located in the folder together with
         the synchronized trackir data. It normalizes using two different methods:
@@ -143,9 +144,47 @@ def log_scale_data():
             elif filetype == "trackir":
                 pass
 
+###################################
+
+def non_log_scale_data():
+    """This function normalizes the cleaned sensemat data located in the folder together with
+        the synchronized trackir data. It normalizes using two different methods:
+        1. log-normalization: the log values of the first row are substracted
+                              from the log values of the subsequent rows.
+        2. non-log normalization: first each row has the first row substracted from it,
+                                  and then is divided by S_mean of that row."""
+
+    folder = Path("Cleaned data")
+    pattern = r"subject(\d+)_run(\d+)_(sensemat|trackir)\.csv"
+    output_dir = os.path.join("Non-log preprocessed data")
+
+    for file in folder.iterdir():
+        match = re.match(pattern, file.name)
+        if match:
+            subject = str(match.group(1))
+            run = str(match.group(2))
+            filetype = match.group(3)
+
+            if filetype == "sensemat":
+                sensemat_df = pd.read_csv(file)
+                sensemat_df = sensemat_df.rename(columns={"RECV_TIME": "Unix"})
+                first_row = sensemat_df.iloc[0,1:129]
+                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129] - first_row # Subtract first row from all rows
+                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129].div(sensemat_df.iloc[:, -1], axis=0) # divide each row by its last-column value
+                sensemat_df = sensemat_df.iloc[:,:-1] # Drop S_mean col
+
+                trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
+                trackir_df = trackir_df.iloc[:,1:]
+                combined_df = pd.DataFrame(pd.concat((sensemat_df, trackir_df), axis=1))
+                output = os.path.join(output_dir, f"subject{subject}_run{run}_non_log_preprocessed.csv")
+                combined_df.to_csv(output, sep=",", index=False)
+            elif filetype == "trackir":
+                pass
+    print("Done with non-log preprocessing")
 # Example usage:
 if __name__ == "__main__":
     # for i in range(11,12):
     #     participant_folder = f"recordings/pn{i}"  # Change to your participant folder
     #     preprocess_participant_data(participant_folder)    
-    log_scale_data()
+    # log_scale_data()
+    non_log_scale_data()
