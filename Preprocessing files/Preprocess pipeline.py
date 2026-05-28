@@ -112,17 +112,19 @@ def preprocess_participant_data(participant_folder):
 ###################################
 
 def log_scale_data():
-    """This function normalizes the cleaned sensemat data located in the folder together with
-        the synchronized trackir data. It normalizes using two different methods:
-        1. log-normalization: the log values of the first row are substracted
-                              from the log values of the subsequent rows.
-        2. non-log normalization: first each row has the first row substracted from it,
-                                  and then is divided by S_mean of that row."""
+    """ This function normalizes the cleaned sensemat data located in the folder together with
+        the synchronized trackir data. It takes the log values of the first row and substracts
+        them from the log values of the subsequent rows. 
+        It saves a csv file with combined processed SenseMat and TrackIR data to "Non-log processed data"
+        folder."""
 
     folder = Path("Cleaned data")
     pattern = r"subject(\d+)_run(\d+)_(sensemat|trackir)\.csv"
     output_dir = os.path.join("Log preprocessed data")
 
+    # Iterate through all files in the folder "Cleaned data" and for each SenseMat file, it
+    # extracts its subject and run number, which are used to load the corresponding TrackIR 
+    # file. It combines both data in a single csv file.
     for file in folder.iterdir():
         match = re.match(pattern, file.name)
         if match:
@@ -143,21 +145,24 @@ def log_scale_data():
                 combined_df.to_csv(output, sep=",", index=False)
             elif filetype == "trackir":
                 pass
+    print("Done with log preprocessing")
 
 ###################################
 
 def non_log_scale_data():
-    """This function normalizes the cleaned sensemat data located in the folder together with
-        the synchronized trackir data. It normalizes using two different methods:
-        1. log-normalization: the log values of the first row are substracted
-                              from the log values of the subsequent rows.
-        2. non-log normalization: first each row has the first row substracted from it,
-                                  and then is divided by S_mean of that row."""
+    """ This function normalizes the cleaned sensemat data located in the folder together with
+        the synchronized trackir data. It subtracts the first each row from all rows, and then 
+        each row is divided by the S_mean of that row. 
+        It saves a csv file with combined processed SenseMat and TrackIR data to "Non-log processed data"
+        folder. """
 
     folder = Path("Cleaned data")
     pattern = r"subject(\d+)_run(\d+)_(sensemat|trackir)\.csv"
     output_dir = os.path.join("Non-log preprocessed data")
 
+    # Iterate through all files in the folder "Cleaned data" and for each SenseMat file, it
+    # extracts its subject and run number, which are used to load the corresponding TrackIR 
+    # file. It combines both data in a single csv file.
     for file in folder.iterdir():
         match = re.match(pattern, file.name)
         if match:
@@ -181,10 +186,25 @@ def non_log_scale_data():
             elif filetype == "trackir":
                 pass
     print("Done with non-log preprocessing")
-# Example usage:
+
+# Example usage -> In terminal: Python "Preprocessing files/Preprocess pipeline.py"
 if __name__ == "__main__":
+
+    #####################################################################################
+    # Uncomment the following if you want to clean all files in the "recordings" folder:
+    #####################################################################################
     # for i in range(11,12):
     #     participant_folder = f"recordings/pn{i}"  # Change to your participant folder
     #     preprocess_participant_data(participant_folder)    
+    
+    #####################################################################################
+    # Uncomment the following if you want to log-preprocess all files in "Cleaned data":
+    #####################################################################################
     # log_scale_data()
-    non_log_scale_data()
+
+    #####################################################################################
+    # Uncomment the following if you want to non-log-preprocess all files in "Cleaned data":
+    #####################################################################################
+    # non_log_scale_data()
+
+    pass
