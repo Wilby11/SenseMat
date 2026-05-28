@@ -14,6 +14,8 @@ import glob
 import pandas as pd
 import sys
 from pathlib import Path
+import numpy as np
+
 
 # Add current directory to path to import modules with spaces in names
 sys.path.insert(0, str(Path(__file__).parent))
@@ -100,14 +102,50 @@ def preprocess_participant_data(participant_folder):
         print(f"  Step 2-3: Synchronizing TrackIR and SenseMat data...")
         try:
             output_dir = os.path.join("Cleaned data")
-            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir, reset_roll_threshold=0.01)
+            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir, reset_roll_threshold=0.0001)
             print(f"    ✓ Data synchronized")
         except Exception as e:
             print(f"    ✗ Error synchronizing data: {e}")
             continue
 
+
+###################################
+def log_scale_data():
+    """This function normalizes the cleaned sensemat data located in the folder together with
+        the synchronized trackir data. It normalizes using two different methods:
+        1. log-normalization: the log values of the first row are substracted
+                              from the log values of the subsequent rows.
+        2. non-log normalization: first each row has the first row substracted from it,
+                                  and then is divided by S_mean of that row."""
+
+    folder = Path("Cleaned data")
+    pattern = r"subject(\d+)_run(\d+)_(sensemat|trackir)\.csv"
+    output_dir = os.path.join("Log preprocessed data")
+
+    for file in folder.iterdir():
+        match = re.match(pattern, file.name)
+        if match:
+            subject = str(match.group(1))
+            run = str(match.group(2))
+            filetype = match.group(3)
+
+            if filetype == "sensemat":
+                sensemat_df = pd.read_csv(file)
+                sensemat_df = sensemat_df.iloc[:,:-1] # Drop S_mean col
+                log_first_row = np.log(sensemat_df.iloc[0,1:129])
+                sensemat_df.iloc[:,1:129] = np.log(sensemat_df.iloc[:,1:129]) - log_first_row # Replace each value by its log-value (excpet time col)
+                sensemat_df = sensemat_df.rename(columns={"RECV_TIME": "Unix"})
+                trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
+                trackir_df = trackir_df.iloc[:,1:]
+                combined_df = pd.DataFrame(pd.concat((sensemat_df, trackir_df), axis=1))
+                output = os.path.join(output_dir, f"subject{subject}_run{run}_log_preprocessed.csv")
+                combined_df.to_csv(output, sep=",", index=False)
+            elif filetype == "trackir":
+                pass
+
 # Example usage:
 if __name__ == "__main__":
-    for i in range(11,29):
-        participant_folder = f"recordings/pn{i}"  # Change to your participant folder
-        preprocess_participant_data(participant_folder)    
+    # for i in range(11,12):
+    #     participant_folder = f"recordings/pn{i}"  # Change to your participant folder
+    #     preprocess_participant_data(participant_folder)    
+    log_scale_data()

@@ -195,7 +195,7 @@ def sync_trackir_data(
         (sensemat_df["RECV_TIME"] >= reset_time)
         & (sensemat_df["RECV_TIME"] <= end_time)
     ].copy()
-
+    sensemat_trimmed = sensemat_trimmed.astype(float)
     if len(sensemat_trimmed) == 0:
         raise ValueError("No overlapping SenseMat data after recentering.")
 
