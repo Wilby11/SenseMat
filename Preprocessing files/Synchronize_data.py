@@ -90,6 +90,212 @@ def sync_trackir_data(trackir_filepath, sensemat_filepath, subject, run, output_
     #     print(f"Success! Synced TrackIR data saved to {trackir_output}.")
     #     print(f"Success! Trimmed SenseMat data saved to {sensemat_output}.")
 
+
+import os
+import numpy as np
+import pandas as pd
+from scipy.interpolate import interp1d
+
+
+def sync_trackir_data(
+    trackir_filepath,
+    sensemat_filepath,
+    subject=None,
+    run=None,
+    output_dir=None,
+    reset_roll_threshold=0.0002,
+):
+    """
+    Synchronize TrackIR data to SenseMat timestamps.
+
+    Steps:
+    1. Load TrackIR and SenseMat files.
+    2. Detect TrackIR recenter event (Roll ~= 0).
+    3. Trim both datasets:
+        - start = TrackIR recenter timestamp
+        - end   = minimum final timestamp
+    4. Interpolate TrackIR data onto SenseMat timestamps.
+    5. Preserve the first TrackIR row after recentering
+       (avoid interpolation across the discontinuity).
+    """
+
+    # ------------------------------------------------------------------
+    # Load SenseMat
+    # ------------------------------------------------------------------
+
+    if isinstance(sensemat_filepath, str):
+        sensemat_df = pd.read_csv(
+            sensemat_filepath,
+            sep=",",
+            comment="#",
+            header=0,
+            usecols=[0] + list(range(3, 131)),
+            low_memory=False,
+        )
+    else:
+        sensemat_df = sensemat_filepath.copy()
+        sensemat_df = sensemat_df.iloc[:, [1] + list(range(4, 133))]
+
+    # ------------------------------------------------------------------
+    # Load TrackIR
+    # ------------------------------------------------------------------
+
+    trackir_df = pd.read_csv(trackir_filepath, sep=";")
+
+    trackir_columns = ["X", "Y", "Z", "Pitch", "Yaw", "Roll"]
+
+    # ------------------------------------------------------------------
+    # Extract timestamps
+    # ------------------------------------------------------------------
+
+    sensemat_times = sensemat_df["RECV_TIME"].to_numpy()
+    trackir_times = trackir_df["Unix_Timestamp"].to_numpy()
+
+    # ------------------------------------------------------------------
+    # Detect TrackIR recenter point
+    # ------------------------------------------------------------------
+
+    reset_idx = np.where(
+        np.abs(trackir_df["Roll"].to_numpy()) < reset_roll_threshold
+    )[0]
+
+    if len(reset_idx) == 0:
+        raise ValueError("Could not detect TrackIR recenter point.")
+
+    reset_idx = reset_idx[0]
+
+    reset_time = trackir_df.iloc[reset_idx]["Unix_Timestamp"]
+
+    # ------------------------------------------------------------------
+    # Determine common recording interval
+    # ------------------------------------------------------------------
+
+    end_time = min(
+        trackir_times[-1],
+        sensemat_times[-1],
+    )
+
+    # ------------------------------------------------------------------
+    # Trim TrackIR
+    # IMPORTANT:
+    # Start EXACTLY at recenter point to avoid interpolation
+    # across the discontinuity before recentering.
+    # ------------------------------------------------------------------
+
+    trackir_trimmed = trackir_df.iloc[reset_idx:].copy()
+    trackir_trimmed = trackir_trimmed[
+        trackir_trimmed["Unix_Timestamp"] <= end_time
+    ]
+
+    # ------------------------------------------------------------------
+    # Trim SenseMat
+    # ------------------------------------------------------------------
+
+    sensemat_trimmed = sensemat_df[
+        (sensemat_df["RECV_TIME"] >= reset_time)
+        & (sensemat_df["RECV_TIME"] <= end_time)
+    ].copy()
+
+    if len(sensemat_trimmed) == 0:
+        raise ValueError("No overlapping SenseMat data after recentering.")
+
+    # ------------------------------------------------------------------
+    # Build interpolator
+    # ------------------------------------------------------------------
+
+    interp_times = trackir_trimmed["Unix_Timestamp"].to_numpy()
+
+    interp_values = trackir_trimmed[trackir_columns].to_numpy()
+
+    interpolator = interp1d(
+        interp_times,
+        interp_values,
+        axis=0,
+        kind="linear",
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+
+    # ------------------------------------------------------------------
+    # Interpolate TrackIR onto SenseMat timestamps
+    # ------------------------------------------------------------------
+
+    target_times = sensemat_trimmed["RECV_TIME"].to_numpy()
+
+    synced_values = interpolator(target_times)
+
+    # ------------------------------------------------------------------
+    # Preserve first TrackIR recentered row
+    # Avoid interpolation over discontinuity
+    # ------------------------------------------------------------------
+
+    synced_values[0] = interp_values[0]
+
+    # ------------------------------------------------------------------
+    # Build synchronized TrackIR dataframe
+    # ------------------------------------------------------------------
+
+    trackir_synced_df = pd.DataFrame(
+        synced_values,
+        columns=trackir_columns,
+    )
+
+    trackir_synced_df.insert(
+        0,
+        "Unix_Timestamp",
+        target_times,
+    )
+
+    # ------------------------------------------------------------------
+    # Optional:
+    # replace first SenseMat row by average before reset
+    # ------------------------------------------------------------------
+
+    pre_reset = sensemat_df[
+        sensemat_df["RECV_TIME"] < reset_time
+    ]
+
+    if len(pre_reset) >= 20:
+
+        mean_row = pre_reset.iloc[-20:, 1:].mean()
+
+        sensemat_trimmed.iloc[0, 1:] = mean_row.values
+
+    # ------------------------------------------------------------------
+    # Save outputs
+    # ------------------------------------------------------------------
+
+    if output_dir is not None:
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        trackir_output = os.path.join(
+            output_dir,
+            f"subject{subject}_run{run}_trackir.csv",
+        )
+
+        sensemat_output = os.path.join(
+            output_dir,
+            f"subject{subject}_run{run}_sensemat.csv",
+        )
+
+        trackir_synced_df.to_csv(
+            trackir_output,
+            sep=";",
+            index=False,
+        )
+
+        sensemat_trimmed.to_csv(
+            sensemat_output,
+            index=False,
+        )
+
+        print(f"Saved TrackIR:  {trackir_output}")
+        print(f"Saved SenseMat: {sensemat_output}")
+
+    return trackir_synced_df, sensemat_trimmed
+
+
 if __name__ == "__main__":
     sensemat_file_path = "recordings\\pn08\\processed_sensemat_data\\20260511T163401-head-sensemat-subject8-run1_processed.csv"
     trackir_file_path = "recordings\\pn08\\20260511_163351_trackir_data_subject8_run1.csv"
