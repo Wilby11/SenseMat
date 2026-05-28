@@ -4,7 +4,7 @@
 # 3. Apply the `Synchronize_data.py` script to synchronize the TrackIR and SenseMat data based on their timestamps.
 #    Additionally, this script will identify the timestamp where the TrackIR data was reset to zero 
 #    and trim both datasets to start from that point. It will also trim at the same endpoint.
-# 4. Save the synchronized and trimmed datasets to new CSV files in 'Preprocessed data' folder for the participant.
+# 4. Save the synchronized and trimmed datasets to new CSV files in 'Cleaned data' folder for the participant.
 # 5. Apply the 'Visualization preprocessing.py' script to prepare the data for visualization. This script collects
 #    both TrackIR and Sensemat data, as well as the predicted 6 DOF, into one CSV file for easier visualization in the 'visualization.html' file.
 
@@ -67,7 +67,7 @@ def preprocess_participant_data(participant_folder):
         # Find corresponding SenseMat file
         # SenseMat format: "...-head-sensemat-subjectX-runY.csv"
         sensemat_pattern = str(participant_path / f"*subject{subject_num}_run*{run_num}-head-sensemat-serial-log.csv")
-        # sensemat_pattern = str(participant_path / f"*-head-sensemat-serial-log-subject{subject_num}-run*{run_num}.csv") # The first couple of runs use this format
+        # sensemat_pattern = str(participant_path / f"*-head-sensemat-subject{subject_num}-run*{run_num}.csv") # The first couple of runs use this format
         sensemat_files = glob.glob(sensemat_pattern)
         
         if not sensemat_files:
@@ -99,8 +99,8 @@ def preprocess_participant_data(participant_folder):
         # Step 2 & 3: Synchronize TrackIR and SenseMat data
         print(f"  Step 2-3: Synchronizing TrackIR and SenseMat data...")
         try:
-            output_dir = os.path.join("Preprocessed data")#, f"subject{subject_num}_run{run_num}")
-            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir)
+            output_dir = os.path.join("Cleaned data")
+            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir, reset_roll_threshold=0.01)
             print(f"    ✓ Data synchronized")
         except Exception as e:
             print(f"    ✗ Error synchronizing data: {e}")
@@ -108,5 +108,6 @@ def preprocess_participant_data(participant_folder):
 
 # Example usage:
 if __name__ == "__main__":
-    participant_folder = "recordings/pn07"  # Change to your participant folder
-    preprocess_participant_data(participant_folder)    
+    for i in range(11,29):
+        participant_folder = f"recordings/pn{i}"  # Change to your participant folder
+        preprocess_participant_data(participant_folder)    
