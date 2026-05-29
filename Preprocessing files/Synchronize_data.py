@@ -56,11 +56,10 @@ def sync_trackir_data(
     # Detect TrackIR recenter point
     # ------------------------------------------------------------------
     reset_idx = np.where(np.abs(trackir_df["Roll"].to_numpy()) < reset_roll_threshold)[0] # first row where Roll is approx zero
-
     if len(reset_idx) == 0:
         raise ValueError("Could not detect TrackIR recenter point.")
 
-    # reset_idx = reset_idx[0]
+    reset_idx = reset_idx[0] # extract unix of the recenter row, i.e. the first element
     reset_time = trackir_df.iloc[reset_idx]["Unix_Timestamp"]
 
     # ------------------------------------------------------------------
