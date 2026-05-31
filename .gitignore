@@ -1,3 +1,6 @@
 TrackIR_PythonClient/App_Content 
 .gitignore
 Preprocessing files/Tryout.ipynb
+models_guillermo/__pycache__/
+__pycache__/
+**/__pycache__/
