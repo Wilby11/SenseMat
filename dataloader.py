@@ -74,6 +74,7 @@ train_dl, val_dl, test_dl = get_dataloaders(
     window_size     = 60,             # frames per window
     flat_spatial    = True,           # True → (N, window, 128), False → (N, window, 16, 8)
     use_metadata    = True,           # include subject metadata in batch
+    normalize_signal = True,         # True → per-sensor z-score normalisation; False → raw values
     batch_size      = 32,
     train_ratio     = 0.70,
     val_ratio       = 0.15,           # test_ratio is inferred as 1 - train_ratio - val_ratio
@@ -240,11 +241,24 @@ def _load_csv(path: Path) -> Tuple[np.ndarray, np.ndarray]:
     """
     df = pd.read_csv(path)
 
+    # ── Check for missing signal columns ─────────────────────────────────────
+    missing_cols = [c for c in SIGNAL_COLS if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"{path.name}: missing signal columns: {missing_cols[:5]}{'…' if len(missing_cols) > 5 else ''}")
+
     # ── Signal → (T, 16, 8) ──────────────────────────────────────────────────
     # reshape(-1, N_COLS, N_ROWS) groups by mat-col first, then .transpose(0,2,1) gives
     # array[t, row, col] = S_{col}_{row}: portrait layout, 16 rows x 8 cols.
-    signal = df[SIGNAL_COLS].values.astype(np.float32)      # (T, 128)
-    signal = signal.reshape(-1, N_COLS, N_ROWS).transpose(0, 2, 1)  # (T, 16, 8)
+    sig_df = df[SIGNAL_COLS]
+    nan_rows = sig_df.isnull().any(axis=1)
+    if nan_rows.any():
+        bad_indices = nan_rows[nan_rows].index.tolist()
+        print(f"  [WARNING] {path.name}: NaN signal at row(s) {bad_indices} — dropping {len(bad_indices)} row(s)")
+        df = df.drop(index=bad_indices).reset_index(drop=True)
+        sig_df = df[SIGNAL_COLS]
+
+    signal = sig_df.values.astype(np.float32)                         # (T, 128)
+    signal = signal.reshape(-1, N_COLS, N_ROWS).transpose(0, 2, 1)   # (T, 16, 8)
 
     # ── Labels ───────────────────────────────────────────────────────────────
     labels = df[LABEL_COLS].values.astype(np.float32)       # (T, 6)
@@ -365,7 +379,7 @@ class SenseMatDataset(Dataset):
 def get_dataloaders(
     data_root:      str,
     preprocessed:   Literal["non_log", "log"] = "non_log",
-    window_size:    int   = 64,
+    window_size:    int   = 60,
     overlap:        float = 0.5,
     flat_spatial:   bool  = True,
     use_metadata:   bool  = True,
@@ -373,7 +387,9 @@ def get_dataloaders(
     train_ratio:    float = 0.70,
     val_ratio:      float = 0.15,
     seed:           int   = 42,
+    normalize_signal: bool  = True,
     num_workers:    int   = 0,
+    debug:          bool  = False,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Build train / val / test DataLoaders.
@@ -391,8 +407,11 @@ def get_dataloaders(
     train_ratio   : fraction of files for training
     val_ratio     : fraction of files for validation
                     (test_ratio = 1 - train_ratio - val_ratio)
+    normalize_signal : if True, fit a per-sensor StandardScaler on train and apply to all splits
+                       if False, raw signal values are passed through unchanged
     seed          : random seed for reproducible splits
     num_workers   : DataLoader worker processes
+    debug         : print detailed diagnostics at each pipeline stage
 
     Returns
     -------
@@ -415,16 +434,54 @@ def get_dataloaders(
     )
     print(f"Files  →  train: {len(train_files)}  val: {len(val_files)}  test: {len(test_files)}")
 
+    if debug:
+        print("\n[DEBUG] File assignments:")
+        split_map = {f: "TRAIN" for f in train_files}
+        split_map.update({f: "VAL"   for f in val_files})
+        split_map.update({f: "TEST"  for f in test_files})
+        for f in all_files:
+            sid, rid = _parse_filename(f)
+            print(f"  [{split_map[f]}]  {f.name}  (subject={sid}, run={rid})")
+        assert not (set(train_files) & set(val_files)),  "[ERROR] Train/val file overlap!"
+        assert not (set(train_files) & set(test_files)), "[ERROR] Train/test file overlap!"
+        assert not (set(val_files)   & set(test_files)), "[ERROR] Val/test file overlap!"
+        print("  [OK] No file overlap between splits.")
+
     # ── 2. Load raw signals from training files (for scaler fitting) ─────────
-    def _load_signals(files):
-        return [_load_csv(f) for f in files]   # list of (signal(T,8,16), labels(T,6))
+    def _load_signals(files, split_name=""):
+        result = []
+        for f in files:
+            sig, lab = _load_csv(f)
+            if debug:
+                nan_sig = int(np.isnan(sig).sum())
+                nan_lab = int(np.isnan(lab).sum())
+                warn = "  <<< WARNING: NaN detected!" if (nan_sig or nan_lab) else ""
+                print(f"  [{split_name}] {f.name}: signal={sig.shape}  labels={lab.shape}  "
+                      f"sig_range=[{sig.min():.3f}, {sig.max():.3f}]  "
+                      f"NaN(sig={nan_sig}, lab={nan_lab}){warn}")
+            result.append((sig, lab))
+        return result
 
-    train_raw = _load_signals(train_files)
-    val_raw   = _load_signals(val_files)
-    test_raw  = _load_signals(test_files)
+    if debug:
+        print("\n[DEBUG] Loading CSVs:")
+    train_raw = _load_signals(train_files, "TRAIN")
+    val_raw   = _load_signals(val_files,   "VAL")
+    test_raw  = _load_signals(test_files,  "TEST")
 
-    # ── 3. Fit signal scaler on train only ───────────────────────────────────
-    sig_scaler = _fit_signal_scaler([sig for sig, _ in train_raw])
+    # ── 3. Fit signal scaler on train only (optional) ────────────────────────
+    sig_scaler = _fit_signal_scaler([sig for sig, _ in train_raw]) if normalize_signal else None
+
+    if debug:
+        if normalize_signal:
+            print(f"\n[DEBUG] Signal scaler (fit on train only):")
+            print(f"  per-sensor mean : min={sig_scaler.mean_.min():.4f}  max={sig_scaler.mean_.max():.4f}")
+            print(f"  per-sensor scale: min={sig_scaler.scale_.min():.4f}  max={sig_scaler.scale_.max():.4f}")
+            _s0_raw    = train_raw[0][0]
+            _s0_scaled = _apply_signal_scaler(_s0_raw[np.newaxis], sig_scaler)[0]
+            print(f"  Scaled train[0] : mean={_s0_scaled.mean():.4f}  std={_s0_scaled.std():.4f}  "
+                  f"(expected ≈ 0.0, ≈ 1.0)")
+        else:
+            print(f"\n[DEBUG] Signal scaling disabled (normalize_signal=False).")
 
     # ── 4. Load metadata (optional) ──────────────────────────────────────────
     meta_scaler = None
@@ -443,6 +500,14 @@ def get_dataloaders(
 
         meta_scaler = _fit_meta_scaler(train_meta_raw)
 
+        if debug:
+            print(f"\n[DEBUG] Metadata (train files):")
+            print(f"  Fields order: {META_FIELDS}")
+            for f, enc in zip(train_files, train_meta_raw):
+                print(f"  {f.name}: {enc}")
+            print(f"  Scaler mean : {meta_scaler.mean_}")
+            print(f"  Scaler scale: {meta_scaler.scale_}")
+
         def _norm_meta(meta_list):
             stacked = np.stack(meta_list, axis=0)
             return meta_scaler.transform(stacked).astype(np.float32)  # (M, 5)
@@ -455,22 +520,28 @@ def get_dataloaders(
     #    Scale signal → window → tag each window with its file's meta vector.
     #    Windowing happens AFTER file-level split → zero leakage.
 
-    def _build_split_arrays(raw_pairs, meta_norm_per_file):
+    def _build_split_arrays(raw_pairs, meta_norm_per_file, split_name=""):
         """
         raw_pairs         : list of (signal(T,8,16), labels(T,6))
         meta_norm_per_file: (n_files, 5) array or None
 
         Returns (X_all, y_all, meta_all or None)
         """
+        if debug:
+            step = max(1, int(window_size * (1 - overlap)))
+            print(f"\n[DEBUG] Windowing [{split_name}]  window={window_size}  step={step}:")
         X_all, y_all, meta_all = [], [], []
 
         for i, (sig, lab) in enumerate(raw_pairs):
-            # Scale signal
-            sig_s = _apply_signal_scaler(sig[np.newaxis], sig_scaler)[0]   # (T,8,16)
+            # Scale signal (skipped if normalize_signal=False)
+            sig_s = _apply_signal_scaler(sig[np.newaxis], sig_scaler)[0] if sig_scaler is not None else sig
 
             # Window
             X_win, y_win = _make_windows(sig_s, lab, window_size, overlap)
             # X_win: (N_w, W, 16, 8)   y_win: (N_w, W, 6)
+            if debug:
+                print(f"  file {i}: T={len(sig)}  →  {len(X_win)} windows  "
+                      f"X_win={X_win.shape}  y_win={y_win.shape}")
             X_all.append(X_win)
             y_all.append(y_win)
 
@@ -492,9 +563,9 @@ def get_dataloaders(
     val_meta_nf   = val_meta_norm   if use_metadata else None
     test_meta_nf  = test_meta_norm  if use_metadata else None
 
-    X_train, y_train, meta_train = _build_split_arrays(train_raw, train_meta_nf)
-    X_val,   y_val,   meta_val   = _build_split_arrays(val_raw,   val_meta_nf)
-    X_test,  y_test,  meta_test  = _build_split_arrays(test_raw,  test_meta_nf)
+    X_train, y_train, meta_train = _build_split_arrays(train_raw, train_meta_nf, "TRAIN")
+    X_val,   y_val,   meta_val   = _build_split_arrays(val_raw,   val_meta_nf,   "VAL")
+    X_test,  y_test,  meta_test  = _build_split_arrays(test_raw,  test_meta_nf,  "TEST")
 
     print(f"Windows → train: {len(X_train)}  val: {len(X_val)}  test: {len(X_test)}")
     print(f"X shape (train): {X_train.shape}   →  flat_spatial={flat_spatial}")
@@ -527,7 +598,7 @@ def get_dataloaders(
 if __name__ == "__main__":
     import sys
 
-    data_root = sys.argv[1] if len(sys.argv) > 1 else "./data"
+    data_root = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).parent)
 
     print("=" * 60)
     print("Smoke-test: flat_spatial=True, use_metadata=True")
@@ -535,17 +606,34 @@ if __name__ == "__main__":
     train_dl, val_dl, test_dl = get_dataloaders(
         data_root    = data_root,
         preprocessed = "non_log",
-        window_size  = 64,
+        window_size  = 60,
         flat_spatial = True,
         use_metadata = True,
         batch_size   = 8,
         seed         = 42,
+        debug        = True,
     )
     batch = next(iter(train_dl))
     X, meta, y = batch
-    print(f"  X    : {X.shape}   dtype={X.dtype}")
+    print(f"\n  X    : {X.shape}   dtype={X.dtype}")
     print(f"  meta : {meta.shape}   dtype={meta.dtype}")
     print(f"  y    : {y.shape}   dtype={y.dtype}")
+
+    assert not torch.isnan(X).any(),    "[ERROR] NaN in X!"
+    assert not torch.isnan(meta).any(), "[ERROR] NaN in meta!"
+    assert not torch.isnan(y).any(),    "[ERROR] NaN in y!"
+    assert not torch.isinf(X).any(),    "[ERROR] Inf in X!"
+    assert X.shape[1] == 60,   f"[ERROR] Expected window dim=60, got {X.shape[1]}"
+    assert X.shape[2] == 128,  f"[ERROR] Expected flat spatial=128, got {X.shape[2]}"
+    assert y.shape[2] == 6,    f"[ERROR] Expected 6 label dims, got {y.shape[2]}"
+    assert meta.shape[1] == 5, f"[ERROR] Expected 5 meta dims, got {meta.shape[1]}"
+    print(f"\n  X    stats: mean={X.mean():.4f}  std={X.std():.4f}  "
+          f"min={X.min():.4f}  max={X.max():.4f}")
+    print(f"  meta stats: mean={meta.mean():.4f}  std={meta.std():.4f}  "
+          f"min={meta.min():.4f}  max={meta.max():.4f}")
+    print(f"  y    stats: mean={y.mean():.4f}  std={y.std():.4f}  "
+          f"min={y.min():.4f}  max={y.max():.4f}")
+    print("  [OK] All assertions passed for flat_spatial=True.")
 
     print()
     print("=" * 60)
@@ -553,14 +641,25 @@ if __name__ == "__main__":
     print("=" * 60)
     train_dl2, _, _ = get_dataloaders(
         data_root    = data_root,
-        preprocessed = "non_log",
-        window_size  = 64,
+        preprocessed = "log",
+        window_size  = 60,
         flat_spatial = False,
         use_metadata = False,
         batch_size   = 8,
         seed         = 42,
+        debug        = False,
     )
     batch2 = next(iter(train_dl2))
     X2, y2 = batch2
-    print(f"  X    : {X2.shape}   dtype={X2.dtype}")
+    print(f"\n  X    : {X2.shape}   dtype={X2.dtype}")
     print(f"  y    : {y2.shape}   dtype={y2.dtype}")
+
+    assert not torch.isnan(X2).any(), "[ERROR] NaN in X2!"
+    assert not torch.isnan(y2).any(), "[ERROR] NaN in y2!"
+    assert X2.shape[1] == 60, f"[ERROR] Expected window dim=6, got {X2.shape[1]}"
+    assert X2.shape[2] == 16, f"[ERROR] Expected 16 rows, got {X2.shape[2]}"
+    assert X2.shape[3] == 8,  f"[ERROR] Expected 8 cols, got {X2.shape[3]}"
+    assert y2.shape[2] == 6,  f"[ERROR] Expected 6 label dims, got {y2.shape[2]}"
+    print(f"\n  X    stats: mean={X2.mean():.4f}  std={X2.std():.4f}  "
+          f"min={X2.min():.4f}  max={X2.max():.4f}")
+    print("  [OK] All assertions passed for flat_spatial=False.")
