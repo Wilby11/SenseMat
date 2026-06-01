@@ -195,18 +195,18 @@ if __name__ == "__main__":
     #####################################################################################
     # Uncomment the following if you want to clean all files in the "recordings" folder:
     #####################################################################################
-    # for i in range(11,12):
-    #     participant_folder = f"recordings/pn{i}"  # Change to your participant folder
-    #     preprocess_participant_data(participant_folder)    
+    for i in range(7,8):
+        participant_folder = f"recordings/pn0{i}"  # Change to your participant folder
+        preprocess_participant_data(participant_folder)    
     
     #####################################################################################
     # Uncomment the following if you want to log-preprocess all files in "Cleaned data":
     #####################################################################################
-    # log_scale_data()
+    log_scale_data()
 
     #####################################################################################
     # Uncomment the following if you want to non-log-preprocess all files in "Cleaned data":
     #####################################################################################
-    # non_log_scale_data()
+    non_log_scale_data()
 
     pass
