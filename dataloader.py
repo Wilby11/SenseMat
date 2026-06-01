@@ -72,6 +72,7 @@ train_dl, val_dl, test_dl = get_dataloaders(
     data_root       = "/path/to/data",
     preprocessed    = "non_log",      # "non_log" or "log"
     window_size     = 60,             # frames per window
+    overlap         = 0.5,            # fraction overlap between windows (0.0–<1.0)
     flat_spatial    = True,           # True → (N, window, 128), False → (N, window, 16, 8)
     use_metadata    = True,           # include subject metadata in batch
     normalize_signal = True,         # True → per-sensor z-score normalisation; False → raw values
@@ -79,6 +80,7 @@ train_dl, val_dl, test_dl = get_dataloaders(
     train_ratio     = 0.70,
     val_ratio       = 0.15,           # test_ratio is inferred as 1 - train_ratio - val_ratio
     seed            = 42,
+    degug           = False,          # print detailed diagnostics at each stage (just for checking the file, don't set to True while training)
 )
 
 # One batch:
