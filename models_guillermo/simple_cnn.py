@@ -23,6 +23,7 @@ class SimpleCNN(nn.Module):
         # 64 channels * 2 rows * 4 cols = 512 flat features
         self.fc1 = nn.Linear(512, 128)
         self.relu3 = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.5) # Randomly turns off 50% of the neurons during training
         self.fc2 = nn.Linear(128, 6) # 6DoF Output
 
     def forward(self, x):
@@ -30,5 +31,6 @@ class SimpleCNN(nn.Module):
         x = self.pool2(self.relu2(self.conv2(x)))
         x = self.flatten(x)
         x = self.relu3(self.fc1(x))
+        x = self.dropout(x) # Apply dropout before the final decision
         out = self.fc2(x)
         return out

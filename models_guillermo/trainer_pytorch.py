@@ -17,7 +17,7 @@ def hybrid_6dof_loss(y_pred, y_true, lambda_rot=1.0):
     total_loss = pos_loss + (lambda_rot * rot_loss)
     return total_loss
 
-def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50):
+def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, scheduler=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     
@@ -54,5 +54,11 @@ def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50):
                 val_loss += loss.item()
                 
         avg_val_loss = val_loss / len(val_loader)
+
+        current_lr = optimizer.param_groups[0]['lr']
         
-        print(f"Epoch [{epoch+1}/{epochs}] | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        print(f"Epoch [{epoch+1}/{epochs}] | LR: {current_lr:.6f} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+
+        # If a scheduler was passed in, tell it to evaluate the new validation loss
+        if scheduler is not None:
+            scheduler.step(avg_val_loss)

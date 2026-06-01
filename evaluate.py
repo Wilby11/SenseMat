@@ -3,12 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from dataloader import get_dataloaders
 from models_guillermo.simple_cnn import SimpleCNN
+from models_guillermo.cnn_lstm import SenseMat_CNN_LSTM
+from models_guillermo.resnet_lstm import SenseMat_ResNet_LSTM
+from models_guillermo.transformer import SenseMatTransformer
+from models_guillermo.cnn_transformer import SenseMat_CNN_Transformer
 
 # ==========================================
 # CONFIGURATION
 # ==========================================
-SELECTED_MODEL = "SIMPLE-CNN"
-MODEL_WEIGHTS = "saved_models/simple-cnn_v1.pth"
+SELECTED_MODEL = "CNN-LSTM" # Options: "SIMPLE-CNN", "CNN-LSTM", "RESNET-LSTM", "TRANSFORMER", "CNN-TRANSFORMER"
+MODEL_WEIGHTS = "saved_models/cnn-lstm_v1.pth"
 DATA_ROOT = ""
 
 def plot_tracking_results(targets, predictions):
@@ -28,7 +32,7 @@ def plot_tracking_results(targets, predictions):
         
     plt.tight_layout()
     plt.savefig("evaluation_plot.png")
-    print("\n📊 Saved visual trajectory plot to 'evaluation_plot.png'")
+    print("\n Saved visual trajectory plot to 'evaluation_plot.png'")
 
 def main():
     print(f"=== SENSEMAT EVALUATION: {SELECTED_MODEL} ===")
@@ -37,7 +41,7 @@ def main():
     print("[1/3] Extracting unseen Test Data...")
     _, _, test_loader = get_dataloaders(
         data_root=DATA_ROOT,
-        preprocessed="non_log", # Switch between "log" and "non_log" easily
+        preprocessed="log", # Switch between "log" and "non_log" easily
         window_size=20,
         flat_spatial=False,
         use_metadata=False,
@@ -50,8 +54,23 @@ def main():
     # 2. Initialize Model and Load Weights
     print("[2/3] Loading trained PyTorch weights...")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SimpleCNN()
-    
+    if SELECTED_MODEL == "SIMPLE-CNN":
+        model = SimpleCNN()
+    elif SELECTED_MODEL == "CNN-LSTM":
+        model = SenseMat_CNN_LSTM()
+    elif SELECTED_MODEL == "RESNET-LSTM":
+        model = SenseMat_ResNet_LSTM()
+    elif SELECTED_MODEL == "TRANSFORMER":
+        model = SenseMatTransformer(
+            window_size=20, 
+            num_sensors=128, 
+            d_model=128, 
+            num_heads=4, 
+            num_layers=1
+        )
+    elif SELECTED_MODEL == "CNN-TRANSFORMER":
+        model = SenseMat_CNN_Transformer()
+
     # map_location ensures it works even if you trained on GPU but are evaluating on CPU
     model.load_state_dict(torch.load(MODEL_WEIGHTS, map_location=device))
     model.to(device)
