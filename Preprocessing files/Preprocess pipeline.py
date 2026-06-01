@@ -135,9 +135,10 @@ def log_scale_data():
             if filetype == "sensemat":
                 sensemat_df = pd.read_csv(file)
                 sensemat_df = sensemat_df.iloc[:,:-1] # Drop S_mean col
-                log_first_row = np.log(sensemat_df.iloc[0,1:129])
-                sensemat_df.iloc[:,1:129] = np.log(sensemat_df.iloc[:,1:129]) - log_first_row # Replace each value by its log-value (excpet time col)
+                log_first_row = np.log(sensemat_df.iloc[0,1:129] + 1e-6)
+                sensemat_df.iloc[:,1:129] = np.log(sensemat_df.iloc[:,1:129] + 1e-6) - log_first_row # Replace each value by its log-value (excpet time col)
                 sensemat_df = sensemat_df.rename(columns={"RECV_TIME": "Unix"})
+                
                 trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
                 trackir_df = trackir_df.iloc[:,1:]
                 combined_df = pd.DataFrame(pd.concat((sensemat_df, trackir_df), axis=1))
@@ -173,11 +174,12 @@ def non_log_scale_data():
             if filetype == "sensemat":
                 sensemat_df = pd.read_csv(file)
                 sensemat_df = sensemat_df.rename(columns={"RECV_TIME": "Unix"})
-                first_row = sensemat_df.iloc[0,1:129]
-                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129] - first_row # Subtract first row from all rows
-                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129].div(sensemat_df.iloc[:, -1], axis=0) # divide each row by its last-column value
                 sensemat_df = sensemat_df.iloc[:,:-1] # Drop S_mean col
-
+                first_row = sensemat_df.iloc[0,1:129]
+                first_row_mean = first_row.mean()
+                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129] - first_row # Subtract first row from all rows
+                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129].div(first_row_mean, axis=0) # divide each row by its last-column value
+                
                 trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
                 trackir_df = trackir_df.iloc[:,1:]
                 combined_df = pd.DataFrame(pd.concat((sensemat_df, trackir_df), axis=1))
