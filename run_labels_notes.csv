@@ -1,0 +1,130 @@
+subject, run, label, notes
+7, 1, slow/slow, 
+7, 2, fast/slow, 
+7, 3, fast/fast, 
+7, 4, random, 
+7, 5, cough, 
+7, 6, sneeze, 
+7, 7, random, 
+7, 8, random, 
+8, 1, slow/slow, 
+8, 2, fast/slow, 
+8, 3, fast/fast, 
+8, 4, random,           sensor slipped from head
+8, 5, random, 
+9, 1, slow/slow,        lifted head when looking down
+9, 2, fast/slow, 
+9, 3, fast/fast, 
+9, 4, random, 
+9, 5, head reposition,  lift head from sensemat and reposition
+10, 1, slow/slow,       slightly lifted head when looking down
+10, 2, fast/slow,       slightly lifted head when looking right
+10, 3, fast/slow, 
+10, 4, fast/fast, 
+10, 5, random, 
+10, 6, yawn, 
+10, 7, cough, 
+11, 1, slow/slow,       slightly lifted head from matt
+11, 2, fast/slow, 
+11, 3, fast/slow, 
+11, 4, slow/slow, 
+11, 5, random,          sensor came loose
+11, 6, random, 
+12, 1, slow/slow,       sensemat data started later than reset point trackir
+12, 2, fast/slow, 
+12, 3, fast/fast,       lifted head throughout
+12, 4, fast/fast, 
+12, 5, random, 
+12, 6, shaking, 
+13, 1, slow/slow, 
+13, 2, fast/slow, 
+13, 3, fast/fast, 
+13, 4, random, 
+13, 5, head reposition, 
+13, 6, cough, 
+14, 1, slow/slow, 
+14, 2, fast/slow, 
+14, 3, fast/fast, 
+14, 4, random, 
+14, 5, random, 
+14, 6, head reposition, 
+15, 1, no data, 
+15, 2, no data, 
+15, 3, fast/fast,           lifted head at last down movement
+15, 4, random and cough,    lifted head at last cough
+15, 5, random, 
+15, 6, fast/fast,           lifted head at down movement
+16, 1, slow/slow, 
+16, 2, fast/slow, 
+16, 3, fast/fast,           sensor bounced when going up/down
+16, 4, random, 
+16, 5, random and sneeze,   lifted head at last sneezes
+17, 1, slow/slow, 
+17, 2, fast/slow, 
+17, 3, fast/fast, 
+17, 4, random,              
+18, 1, slow/slow, 
+18, 2, fast/slow,           lifted head
+18, 3, fast/fast, 
+18, 4, random, 
+18, 5, fast/slow,           lifted head
+18, 6, fast slow, 
+19, 1, slow/slow, 
+19, 2, fast/slow, 
+19, 3, fast/fast, 
+19, 4, random, 
+19, 5, head reposition,
+20, 1, slow/slow,           no high values at sensemat
+20, 2, fast/slow,           slightly lifted head
+20, 3, fast/fast,           only started moving after 10 sec
+20, 4, random,              no high sensemat values so not sensitive
+20, 5, cough, 
+21, 1, slow/slow,           cut off the last part cause I was still recording when he was done lifted his head
+21, 2, fast/slow, 
+21, 3, fast/fast, 
+21, 4, shaking, 
+21, 5, random,              start at different angle
+21, 6, random,              start at different angle
+22, 1, slow/slow, 
+22, 2, fast/slow,           trackir out of frame after 1779107413.871476 (unix)  so only keep the first half of this recording
+22, 3, fast/fast, 
+22, 4, random, 
+22, 5, random,              different starting angle
+22, 6, cough, 
+22, 7, random,              lifting head and reposition couple of times
+23, 1, slow/slow, 
+23, 2, fast/slow, 
+23, 3, fast/fast, 
+23, 4, random,              trackir out of place discard data after unix > 1779110712.9076395
+23, 5, random,              different start angle, 
+23, 6, random,              different start angle, 
+23, 7, random,              
+23, 8, random, 
+24, 1, slow/slow, 
+24, 2, fast/slow, 
+24, 3, fast/fast, 
+24, 4, random,              missing trackir lines?
+24, 5, random,              start at different angle
+25, 1, slow/slow, 
+25, 2, fast/slow, 
+25, 3, fast/slow,           out of frame
+25, 4, random, 
+25, 5, random,              staying in same position but head tilted left, 
+25, 6, random,              shoulders and different starting angle
+26, 1, slow/slow, 
+26, 2, fast/slow, 
+26, 3, fast/fast,           lifted head
+26, 4, random,              different starting angle and head clip started to slip very slightly
+26, 5, random,              shoulders on matt 
+26, 6, random,              
+27, 1, slow/slow, 
+27, 2, fast/slow,           lifted head when going down
+27, 3, fast/slow, 
+27, 4, fast/fast,           one pixel partially responding
+27, 5, random,              one pixel partially responding
+27, 6, random,              different starting angle and one pixel partially responding
+28, 1, slow/slow, 
+28, 2, fast/slow, 
+28, 3, fast/fast,           out of frame to the left
+28, 4, random, 
+28, 5, random,              different starting angle 
