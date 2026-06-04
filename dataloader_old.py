@@ -80,8 +80,6 @@ train_dl, val_dl, test_dl = get_dataloaders(
     train_ratio     = 0.70,
     val_ratio       = 0.15,           # test_ratio is inferred as 1 - train_ratio - val_ratio
     seed            = 42,
-    run_labels_csv  = "/path/to/run_labels_notes.csv",  # auto-detected: same folder as this file
-    quality         = "standard",     # "all" | "standard" | "conservative" | "clean" | "reliable"
     degug           = False,          # print detailed diagnostics at each stage (just for checking the file, don't set to True while training)
 )
 
@@ -121,22 +119,6 @@ SIGNAL_COLS = [f"S_{s}_{f}" for s in range(N_COLS) for f in range(N_ROWS)]
 # Metadata field order (must stay fixed for consistent vector encoding)
 META_FIELDS = ["sex", "age", "height", "weight", "head_circumference"]
 
-# ── Notes-based quality filtering ────────────────────────────────────────────
-# Notes values that are always excluded regardless of mode
-_NOTES_ALWAYS_EXCLUDE = {"no_data", "not_sync"}
-
-# Mapping from quality mode → additional notes to exclude (on top of always-excluded)
-_NOTES_EXCLUDE_EXTRA: dict[str, set[str]] = {
-    "all":         set(),
-    "standard":    {"different_pillow", "shoulders"},
-    "conservative":{"different_pillow", "shoulders", "pixel_error", "out_of_frame"},
-    "clean":       {"different_pillow", "shoulders", "pixel_error", "out_of_frame",
-                    "sensor_slipped", "bounce"},
-    "reliable":    None,   # special case: keep ONLY "reliable"
-}
-
-QualityMode = Literal["all", "standard", "conservative", "clean", "reliable"]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # File discovery
@@ -163,95 +145,6 @@ def _parse_filename(path: Path) -> Tuple[int, int]:
     if not m:
         raise ValueError(f"Cannot parse subject/run from filename: {path.name}")
     return int(m.group(1)), int(m.group(2))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Run-label / notes CSV helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _load_run_labels(csv_path: str) -> pd.DataFrame:
-    """
-    Load the run-labels CSV and return a clean DataFrame with columns:
-        subject (int), run (int), label (str), notes (str)
-    """
-    df = pd.read_csv(csv_path)
-    df.columns = df.columns.str.strip()
-    for col in ("label", "notes"):
-        df[col] = df[col].str.strip()
-    return df
-
-
-def _lookup_label(run_df: pd.DataFrame, subject_id: int, run_id: int) -> Optional[str]:
-    """Return the movement label for a given subject+run, or None if not found."""
-    row = run_df[(run_df["subject"] == subject_id) & (run_df["run"] == run_id)]
-    if row.empty:
-        return None
-    return str(row.iloc[0]["label"])
-
-
-def _lookup_notes(run_df: pd.DataFrame, subject_id: int, run_id: int) -> Optional[str]:
-    """Return the notes value for a given subject+run, or None if not found."""
-    row = run_df[(run_df["subject"] == subject_id) & (run_df["run"] == run_id)]
-    if row.empty:
-        return None
-    return str(row.iloc[0]["notes"])
-
-
-def _filter_files_by_notes(
-    files:       List[Path],
-    run_df:      pd.DataFrame,
-    quality:     QualityMode,
-    debug:       bool = False,
-) -> List[Path]:
-    """
-    Filter *files* according to the chosen quality mode.
-
-    Modes
-    -----
-    all          – drop no_data, not_sync
-    standard     – drop no_data, not_sync, different_pillow, shoulders
-    conservative – drop no_data, not_sync, different_pillow, shoulders,
-                   pixel_error, out_of_frame
-    clean        – drop no_data, not_sync, different_pillow, shoulders,
-                   pixel_error, out_of_frame, sensor_slipped, bounce
-    reliable     – keep only files whose notes == "reliable"
-    """
-    if quality not in _NOTES_EXCLUDE_EXTRA:
-        raise ValueError(
-            f"Unknown quality mode '{quality}'. "
-            f"Choose from: {list(_NOTES_EXCLUDE_EXTRA.keys())}"
-        )
-
-    kept, dropped = [], []
-    for f in files:
-        subject_id, run_id = _parse_filename(f)
-        notes = _lookup_notes(run_df, subject_id, run_id)
-
-        if notes is None:
-            # No entry in CSV → warn and keep (conservative fall-through)
-            if debug:
-                print(f"  [FILTER] {f.name}: not found in CSV — keeping")
-            kept.append(f)
-            continue
-
-        if quality == "reliable":
-            keep = (notes == "reliable")
-        else:
-            exclude_set = _NOTES_ALWAYS_EXCLUDE | _NOTES_EXCLUDE_EXTRA[quality]
-            keep = notes not in exclude_set
-
-        if keep:
-            kept.append(f)
-        else:
-            dropped.append((f, notes))
-
-    if debug:
-        print(f"\n[DEBUG] Quality filter mode='{quality}': "
-              f"kept {len(kept)}, dropped {len(dropped)}")
-        for f, n in dropped:
-            print(f"  [DROPPED] {f.name}  (notes='{n}')")
-
-    return kept
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -285,49 +178,48 @@ def _encode_metadata(meta: dict) -> np.ndarray:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _split_files(
-    files:       List[Path],
-    run_df:      pd.DataFrame,
+    files: List[Path],
     train_ratio: float,
     val_ratio:   float,
     seed:        int,
 ) -> Tuple[List[Path], List[Path], List[Path]]:
     """
-    Stratified file-level split on movement label.
+    Stratified file-level split.
 
     Strategy
     --------
-    1. Look up each file's movement label (e.g. "slow/slow", "fast/fast",
-       "cough") from the run-labels CSV using its subject + run numbers.
-    2. Group files by that label so every movement type is represented
-       proportionally in train / val / test.
-    3. Within each label-group, shuffle deterministically with *seed* and
-       split by the requested ratios.
-    4. Files with no matching CSV entry fall back to an "unknown" group so
-       they are still included without silently biasing the split.
+    1. Group files by run number (run 1 = slow, run 3 = fast, etc.).
+    2. Within each run-group, shuffle by subject using the fixed seed and
+       assign files to train / val / test proportionally.
+    3. This guarantees that every run speed (movement style) is represented
+       in all three splits, and that windows from the same subject+run file
+       stay entirely in one split (no data leakage).
 
-    This replaces the previous run-number grouping and ensures that
-    movement-type diversity is balanced across all three splits.
+    Different subjects' runs may land in different splits, which is fine
+    (e.g. subject9_run1 → train, subject9_run2 → val).
     """
     assert train_ratio + val_ratio < 1.0, "train + val ratios must be < 1.0"
     rng = np.random.default_rng(seed)
 
-    # Group files by movement label
-    label_groups: dict[str, List[Path]] = {}
+    # Group by run number
+    run_groups: dict[int, List[Path]] = {}
     for f in files:
-        subject_id, run_id = _parse_filename(f)
-        label = _lookup_label(run_df, subject_id, run_id) or "unknown"
-        label_groups.setdefault(label, []).append(f)
+        _, run_id = _parse_filename(f)
+        run_groups.setdefault(run_id, []).append(f)
 
     train_files, val_files, test_files = [], [], []
 
-    for label in sorted(label_groups):
-        group = label_groups[label]
-        idx      = rng.permutation(len(group))
+    for run_id in sorted(run_groups):
+        group = run_groups[run_id]
+        # Shuffle deterministically within each run-group
+        idx = rng.permutation(len(group))
         shuffled = [group[i] for i in idx]
 
         n_train = max(1, round(len(shuffled) * train_ratio))
         n_val   = max(1, round(len(shuffled) * val_ratio))
+        # Protect against overlap when group is very small
         n_val   = min(n_val, len(shuffled) - n_train)
+        n_test  = len(shuffled) - n_train - n_val
 
         train_files.extend(shuffled[:n_train])
         val_files.extend(shuffled[n_train : n_train + n_val])
@@ -499,7 +391,6 @@ def get_dataloaders(
     seed:           int   = 42,
     normalize_signal: bool  = True,
     num_workers:    int   = 0,
-    quality:        QualityMode   = "standard",
     debug:          bool  = False,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
@@ -522,16 +413,6 @@ def get_dataloaders(
                        if False, raw signal values are passed through unchanged
     seed          : random seed for reproducible splits
     num_workers   : DataLoader worker processes
-    run_labels_csv : loaded automatically from the same directory as this file
-                    (run_labels_notes.csv). Used for quality filtering and
-                    label-stratified splitting. Falls back to run-number
-                    stratification with no filtering if the file is missing.
-    quality       : data quality filter applied before splitting. Options:
-                    "all"          – drop no_data, not_sync
-                    "standard"     – drop no_data, not_sync, different_pillow, shoulders
-                    "conservative" – also drop pixel_error, out_of_frame
-                    "clean"        – also drop sensor_slipped, bounce
-                    "reliable"     – keep only files labelled "reliable" in notes
     debug         : print detailed diagnostics at each pipeline stage
 
     Returns
@@ -548,57 +429,12 @@ def get_dataloaders(
         y    : float32  (batch, window, 6)
     """
 
-    # ── 1. Discover files, filter by quality, then split ────────────────────
+    # ── 1. Discover and split files ──────────────────────────────────────────
     all_files = _discover_files(data_root, preprocessed)
-
-    # Load the run-labels CSV from the same directory as this script
-    _csv_path = Path(__file__).parent / "run_labels_notes.csv"
-    run_df: Optional[pd.DataFrame] = None
-    if _csv_path.exists():
-        run_df = _load_run_labels(str(_csv_path))
-        if debug:
-            print(f"\n[DEBUG] Loaded run-labels CSV: {_csv_path}  "
-                  f"({len(run_df)} entries)")
-    else:
-        print(f"[WARNING] run_labels_notes.csv not found at {_csv_path} — "
-              f"skipping quality filter and using run-number stratification")
-    # ── 1a. Filter by notes (quality mode) ───────────────────────────────────
-    if run_df is not None:
-        all_files = _filter_files_by_notes(all_files, run_df, quality, debug=debug)
-        print(f"Quality filter (mode='{quality}')  →  {len(all_files)} files kept")
-    elif debug:
-        print("[DEBUG] run_labels_notes.csv not found — skipping quality filter")
-
-    # ── 1b. Split (stratify by movement label when CSV is available) ─────────
-    if run_df is not None:
-        train_files, val_files, test_files = _split_files(
-            all_files, run_df, train_ratio, val_ratio, seed
-        )
-    else:
-        # Fallback: stratify by run number (original behaviour)
-        def _split_files_by_run(files, train_ratio, val_ratio, seed):
-            rng = np.random.default_rng(seed)
-            run_groups: dict[int, List[Path]] = {}
-            for f in files:
-                _, run_id = _parse_filename(f)
-                run_groups.setdefault(run_id, []).append(f)
-            tr, va, te = [], [], []
-            for run_id in sorted(run_groups):
-                group    = run_groups[run_id]
-                idx      = rng.permutation(len(group))
-                shuffled = [group[i] for i in idx]
-                n_train  = max(1, round(len(shuffled) * train_ratio))
-                n_val    = min(max(1, round(len(shuffled) * val_ratio)),
-                               len(shuffled) - n_train)
-                tr.extend(shuffled[:n_train])
-                va.extend(shuffled[n_train : n_train + n_val])
-                te.extend(shuffled[n_train + n_val :])
-            return tr, va, te
-        train_files, val_files, test_files = _split_files_by_run(
-            all_files, train_ratio, val_ratio, seed
-        )
-
-    print(f"Files  →  train: {len(train_files)}  val: {len(val_files)}  test: {len(test_files)})")
+    train_files, val_files, test_files = _split_files(
+        all_files, train_ratio, val_ratio, seed
+    )
+    print(f"Files  →  train: {len(train_files)}  val: {len(val_files)}  test: {len(test_files)}")
 
     if debug:
         print("\n[DEBUG] File assignments:")
@@ -607,10 +443,7 @@ def get_dataloaders(
         split_map.update({f: "TEST"  for f in test_files})
         for f in all_files:
             sid, rid = _parse_filename(f)
-            label = _lookup_label(run_df, sid, rid) if run_df is not None else "—"
-            notes = _lookup_notes(run_df, sid, rid) if run_df is not None else "—"
-            print(f"  [{split_map[f]}]  {f.name}  "
-                  f"(subject={sid}, run={rid}, label='{label}', notes='{notes}')")
+            print(f"  [{split_map[f]}]  {f.name}  (subject={sid}, run={rid})")
         assert not (set(train_files) & set(val_files)),  "[ERROR] Train/val file overlap!"
         assert not (set(train_files) & set(test_files)), "[ERROR] Train/test file overlap!"
         assert not (set(val_files)   & set(test_files)), "[ERROR] Val/test file overlap!"

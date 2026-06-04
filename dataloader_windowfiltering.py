@@ -432,6 +432,38 @@ def _fit_meta_scaler(meta_list: List[np.ndarray]) -> StandardScaler:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# IQR window filtering  (computed on unscaled signal, fit on train only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _compute_window_means(
+    raw_pairs:   List[Tuple[np.ndarray, np.ndarray]],
+    window_size: int,
+    overlap:     float,
+) -> np.ndarray:
+    """
+    For a list of (signal(T,16,8), labels) pairs, slide windows and compute
+    the mean of all 128 sensors over every frame in the window.
+
+    Returns a 1-D array of per-window means (unscaled signal).
+    """
+    step = max(1, int(window_size * (1 - overlap)))
+    all_means = []
+    for sig, _ in raw_pairs:
+        T = len(sig)
+        for s in range(0, T - window_size + 1, step):
+            w = sig[s : s + window_size]        # (W, 16, 8)
+            all_means.append(float(w.mean()))
+    return np.array(all_means, dtype=np.float32)
+
+
+def _iqr_fence(window_means: np.ndarray, multiplier: float = 1.5) -> Tuple[float, float]:
+    """Return (lower_fence, upper_fence) using multiplier×IQR rule."""
+    q1, q3 = float(np.percentile(window_means, 25)), float(np.percentile(window_means, 75))
+    iqr    = q3 - q1
+    return q1 - multiplier * iqr, q3 + multiplier * iqr
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Dataset
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -500,6 +532,7 @@ def get_dataloaders(
     normalize_signal: bool  = True,
     num_workers:    int   = 0,
     quality:        QualityMode   = "standard",
+    iqr_multiplier: Optional[float] = 3.0,
     debug:          bool  = False,
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
@@ -522,10 +555,17 @@ def get_dataloaders(
                        if False, raw signal values are passed through unchanged
     seed          : random seed for reproducible splits
     num_workers   : DataLoader worker processes
-    run_labels_csv : loaded automatically from the same directory as this file
-                    (run_labels_notes.csv). Used for quality filtering and
-                    label-stratified splitting. Falls back to run-number
-                    stratification with no filtering if the file is missing.
+    iqr_multiplier : fence multiplier for window-mean outlier removal.
+                    Windows whose unscaled mean (avg of 128 sensors over all
+                    frames in the window) falls outside
+                    Q1 − k×IQR … Q3 + k×IQR are dropped, where k is this
+                    value. The fence is fit on training windows only.
+                    A per-split summary of removed windows (file name, window
+                    index, mean value, and HIGH/LOW direction) is always printed.
+                      1.5  — standard Tukey fence, very harsh
+                      2.0  — looser, only removes more extreme outliers
+                      3.0  — very loose, we use
+                      None — disabled, no windows are removed
     quality       : data quality filter applied before splitting. Options:
                     "all"          – drop no_data, not_sync
                     "standard"     – drop no_data, not_sync, different_pillow, shoulders
@@ -689,36 +729,79 @@ def get_dataloaders(
     #    Scale signal → window → tag each window with its file's meta vector.
     #    Windowing happens AFTER file-level split → zero leakage.
 
-    def _build_split_arrays(raw_pairs, meta_norm_per_file, split_name=""):
+    def _build_split_arrays(raw_pairs, meta_norm_per_file, split_name="",
+                            iqr_fence_bounds=None, file_list=None):
         """
-        raw_pairs         : list of (signal(T,8,16), labels(T,6))
-        meta_norm_per_file: (n_files, 5) array or None
+        raw_pairs          : list of (signal(T,16,8), labels(T,6))
+        meta_norm_per_file : (n_files, 5) array or None
+        iqr_fence_bounds   : (lower, upper) tuple or None — windows outside
+                             this range (by unscaled mean) are dropped
+        file_list          : List[Path] matching raw_pairs, used for reporting
 
         Returns (X_all, y_all, meta_all or None)
         """
+        _step = max(1, int(window_size * (1 - overlap)))
         if debug:
-            step = max(1, int(window_size * (1 - overlap)))
-            print(f"\n[DEBUG] Windowing [{split_name}]  window={window_size}  step={step}:")
+            print(f"\n[DEBUG] Windowing [{split_name}]  window={window_size}  step={_step}:")
         X_all, y_all, meta_all = [], [], []
+        removed_summary = []   # list of (filename, n_removed, [(wi, mean), ...])
 
         for i, (sig, lab) in enumerate(raw_pairs):
-            # Scale signal (skipped if normalize_signal=False)
+            fname = file_list[i].name if file_list is not None else f"file_{i}"
+
+            # Scale signal for model input (skipped if normalize_signal=False)
             sig_s = _apply_signal_scaler(sig[np.newaxis], sig_scaler)[0] if sig_scaler is not None else sig
 
-            # Window
-            X_win, y_win = _make_windows(sig_s, lab, window_size, overlap)
-            # X_win: (N_w, W, 16, 8)   y_win: (N_w, W, 6)
+            # Window both scaled (model input) and unscaled (IQR check)
+            X_win, y_win = _make_windows(sig_s, lab,   window_size, overlap)
+            # Also window the raw signal purely for IQR mean calculation
+            X_raw, _     = _make_windows(sig,   lab,   window_size, overlap)
+            # X_win: (N_w, W, 16, 8)   y_win: (N_w, W, 6)   X_raw: (N_w, W, 16, 8)
+
+            # ── IQR mask ─────────────────────────────────────────────────────
+            if iqr_fence_bounds is not None:
+                lo, hi = iqr_fence_bounds
+                win_means  = X_raw.mean(axis=(1, 2, 3))   # (N_w,) unscaled per-window mean
+                keep_mask  = (win_means >= lo) & (win_means <= hi)
+                n_removed  = int((~keep_mask).sum())
+
+                if n_removed > 0:
+                    bad_indices = [(int(wi), float(win_means[wi]))
+                                   for wi in np.where(~keep_mask)[0]]
+                    removed_summary.append((fname, n_removed, bad_indices))
+
+                X_win = X_win[keep_mask]
+                y_win = y_win[keep_mask]
+                if debug and n_removed:
+                    print(f"  [{split_name}] {fname}: removed {n_removed} IQR-outlier windows "
+                          f"({len(X_win)} kept)")
+
             if debug:
                 print(f"  file {i}: T={len(sig)}  →  {len(X_win)} windows  "
                       f"X_win={X_win.shape}  y_win={y_win.shape}")
+
             X_all.append(X_win)
             y_all.append(y_win)
 
             if meta_norm_per_file is not None:
-                # Broadcast file's meta vector to all windows from that file
-                n_windows = len(X_win)
-                meta_tiled = np.tile(meta_norm_per_file[i], (n_windows, 1))  # (N_w, 5)
+                n_windows  = len(X_win)
+                meta_tiled = np.tile(meta_norm_per_file[i], (n_windows, 1))
                 meta_all.append(meta_tiled)
+
+        # ── Print removed-window summary (mirrors plot_signal_means style) ───
+        if iqr_fence_bounds is not None:
+            total_before = sum(len(X) for X in X_all) + sum(n for _, n, _ in removed_summary)
+            total_removed = sum(n for _, n, _ in removed_summary)
+            print(f"\n  IQR window filter [{split_name}]: "
+                  f"removed {total_removed} / {total_before} windows  "
+                  f"(fence: [{iqr_fence_bounds[0]:.4f}, {iqr_fence_bounds[1]:.4f}])")
+            for fname, n_rem, bad in removed_summary:
+                short = (fname.replace("_non_log_preprocessed.csv", "")
+                              .replace("_log_preprocessed.csv", ""))
+                print(f"    {short}  ({n_rem} window{'s' if n_rem > 1 else ''})")
+                for wi, wm in bad:
+                    direction = "HIGH" if wm > iqr_fence_bounds[1] else "LOW"
+                    print(f"      window {wi:>4}  mean={wm:>8.4f}  [{direction}]")
 
         X_out    = np.concatenate(X_all,    axis=0).astype(np.float32)
         y_out    = np.concatenate(y_all,    axis=0).astype(np.float32)
@@ -732,9 +815,27 @@ def get_dataloaders(
     val_meta_nf   = val_meta_norm   if use_metadata else None
     test_meta_nf  = test_meta_norm  if use_metadata else None
 
-    X_train, y_train, meta_train = _build_split_arrays(train_raw, train_meta_nf, "TRAIN")
-    X_val,   y_val,   meta_val   = _build_split_arrays(val_raw,   val_meta_nf,   "VAL")
-    X_test,  y_test,  meta_test  = _build_split_arrays(test_raw,  test_meta_nf,  "TEST")
+    # ── 5b. Fit IQR fence on unscaled train windows (no leakage) ─────────────
+    if iqr_multiplier is not None:
+        train_window_means = _compute_window_means(train_raw, window_size, overlap)
+        iqr_lo, iqr_hi     = _iqr_fence(train_window_means, iqr_multiplier)
+        print(f"IQR fence (k={iqr_multiplier}, train unscaled) → [{iqr_lo:.4f}, {iqr_hi:.4f}]  "
+              f"({len(train_window_means):,} train windows used to fit)")
+        fence = (iqr_lo, iqr_hi)
+    else:
+        fence = None
+        if debug:
+            print("\n[DEBUG] IQR window filtering disabled (iqr_multiplier=None).")
+
+    X_train, y_train, meta_train = _build_split_arrays(
+        train_raw, train_meta_nf, "TRAIN",
+        iqr_fence_bounds=fence, file_list=train_files)
+    X_val,   y_val,   meta_val   = _build_split_arrays(
+        val_raw,   val_meta_nf,   "VAL",
+        iqr_fence_bounds=fence, file_list=val_files)
+    X_test,  y_test,  meta_test  = _build_split_arrays(
+        test_raw,  test_meta_nf,  "TEST",
+        iqr_fence_bounds=fence, file_list=test_files)
 
     print(f"Windows → train: {len(X_train)}  val: {len(X_val)}  test: {len(X_test)}")
     print(f"X shape (train): {X_train.shape}   →  flat_spatial={flat_spatial}")
