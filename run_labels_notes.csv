@@ -1,130 +1,130 @@
 subject, run, label, notes
-7, 1, slow/slow, 
-7, 2, fast/slow, 
-7, 3, fast/fast, 
-7, 4, random, 
-7, 5, cough, 
-7, 6, sneeze, 
-7, 7, random, 
-7, 8, random, 
-8, 1, slow/slow, 
-8, 2, fast/slow, 
-8, 3, fast/fast, 
-8, 4, random,           sensor slipped from head
-8, 5, random, 
-9, 1, slow/slow,        lifted head when looking down
-9, 2, fast/slow, 
-9, 3, fast/fast, 
-9, 4, random, 
-9, 5, head reposition,  lift head from sensemat and reposition
-10, 1, slow/slow,       slightly lifted head when looking down
-10, 2, fast/slow,       slightly lifted head when looking right
-10, 3, fast/slow, 
-10, 4, fast/fast, 
-10, 5, random, 
-10, 6, yawn, 
-10, 7, cough, 
-11, 1, slow/slow,       slightly lifted head from matt
-11, 2, fast/slow, 
-11, 3, fast/slow, 
-11, 4, slow/slow, 
-11, 5, random,          sensor came loose
-11, 6, random, 
-12, 1, slow/slow,       sensemat data started later than reset point trackir
-12, 2, fast/slow, 
-12, 3, fast/fast,       lifted head throughout
-12, 4, fast/fast, 
-12, 5, random, 
-12, 6, shaking, 
-13, 1, slow/slow, 
-13, 2, fast/slow, 
-13, 3, fast/fast, 
-13, 4, random, 
-13, 5, head reposition, 
-13, 6, cough, 
-14, 1, slow/slow, 
-14, 2, fast/slow, 
-14, 3, fast/fast, 
-14, 4, random, 
-14, 5, random, 
-14, 6, head reposition, 
-15, 1, no data, 
-15, 2, no data, 
-15, 3, fast/fast,           lifted head at last down movement
-15, 4, random and cough,    lifted head at last cough
-15, 5, random, 
-15, 6, fast/fast,           lifted head at down movement
-16, 1, slow/slow, 
-16, 2, fast/slow, 
-16, 3, fast/fast,           sensor bounced when going up/down
-16, 4, random, 
-16, 5, random and sneeze,   lifted head at last sneezes
-17, 1, slow/slow, 
-17, 2, fast/slow, 
-17, 3, fast/fast, 
-17, 4, random,              
-18, 1, slow/slow, 
-18, 2, fast/slow,           lifted head
-18, 3, fast/fast, 
-18, 4, random, 
-18, 5, fast/slow,           lifted head
-18, 6, fast slow, 
-19, 1, slow/slow, 
-19, 2, fast/slow, 
-19, 3, fast/fast, 
-19, 4, random, 
-19, 5, head reposition,
-20, 1, slow/slow,           no high values at sensemat
-20, 2, fast/slow,           slightly lifted head
-20, 3, fast/fast,           only started moving after 10 sec
-20, 4, random,              no high sensemat values so not sensitive
-20, 5, cough, 
-21, 1, slow/slow,           cut off the last part cause I was still recording when he was done lifted his head
-21, 2, fast/slow, 
-21, 3, fast/fast, 
-21, 4, shaking, 
-21, 5, random,              start at different angle
-21, 6, random,              start at different angle
-22, 1, slow/slow, 
-22, 2, fast/slow,           trackir out of frame after 1779107413.871476 (unix)  so only keep the first half of this recording
-22, 3, fast/fast, 
-22, 4, random, 
-22, 5, random,              different starting angle
-22, 6, cough, 
-22, 7, random,              lifting head and reposition couple of times
-23, 1, slow/slow, 
-23, 2, fast/slow, 
-23, 3, fast/fast, 
-23, 4, random,              trackir out of place discard data after unix > 1779110712.9076395
-23, 5, random,              different start angle, 
-23, 6, random,              different start angle, 
-23, 7, random,              
-23, 8, random, 
-24, 1, slow/slow, 
-24, 2, fast/slow, 
-24, 3, fast/fast, 
-24, 4, random,              missing trackir lines?
-24, 5, random,              start at different angle
-25, 1, slow/slow, 
-25, 2, fast/slow, 
-25, 3, fast/slow,           out of frame
-25, 4, random, 
-25, 5, random,              staying in same position but head tilted left, 
-25, 6, random,              shoulders and different starting angle
-26, 1, slow/slow, 
-26, 2, fast/slow, 
-26, 3, fast/fast,           lifted head
-26, 4, random,              different starting angle and head clip started to slip very slightly
-26, 5, random,              shoulders on matt 
-26, 6, random,              
-27, 1, slow/slow, 
-27, 2, fast/slow,           lifted head when going down
-27, 3, fast/slow, 
-27, 4, fast/fast,           one pixel partially responding
-27, 5, random,              one pixel partially responding
-27, 6, random,              different starting angle and one pixel partially responding
-28, 1, slow/slow, 
-28, 2, fast/slow, 
-28, 3, fast/fast,           out of frame to the left
-28, 4, random, 
-28, 5, random,              different starting angle 
+7, 1, slow/slow, reliable
+7, 2, fast/slow, reliable
+7, 3, fast/fast, reliable
+7, 4, random, reliable
+7, 5, cough, reliable
+7, 6, sneeze, reliable
+7, 7, random, reliable
+7, 8, random, reliable
+8, 1, slow/slow, reliable
+8, 2, fast/slow, reliable
+8, 3, fast/fast, reliable
+8, 4, random, sensor_slipped
+8, 5, random, reliable
+9, 1, slow/slow, lift
+9, 2, fast/slow, reliable
+9, 3, fast/fast, reliable
+9, 4, random, reliable
+9, 5, head_reposition, lift
+10, 1, slow/slow, lift
+10, 2, fast/slow, lift
+10, 3, fast/slow, reliable
+10, 4, fast/fast, reliable
+10, 5, random, reliable
+10, 6, yawn, reliable
+10, 7, cough, reliable
+11, 1, slow/slow, lift
+11, 2, fast/slow, reliable
+11, 3, fast/slow, reliable
+11, 4, slow/slow, reliable
+11, 5, random, sensor_slipped
+11, 6, random, reliable
+12, 1, slow/slow, not_sync
+12, 2, fast/slow, reliable
+12, 3, fast/fast, lift
+12, 4, fast/fast, reliable
+12, 5, random, reliable
+12, 6, shaking, reliable
+13, 1, slow/slow, reliable
+13, 2, fast/slow, reliable
+13, 3, fast/fast, reliable
+13, 4, random, reliable
+13, 5, head_reposition, lift
+13, 6, cough, reliable
+14, 1, slow/slow, reliable
+14, 2, fast/slow, reliable
+14, 3, fast/fast, reliable
+14, 4, random, reliable
+14, 5, random, reliable
+14, 6, head_reposition, lift
+15, 1, no_data, no_data
+15, 2, no_data, no_data
+15, 3, fast/fast, lift
+15, 4, cough, lift
+15, 5, random, reliable
+15, 6, fast/fast, lift
+16, 1, slow/slow, reliable
+16, 2, fast/slow, reliable
+16, 3, fast/fast, bounce
+16, 4, random, reliable
+16, 5, sneeze, lift
+17, 1, slow/slow, reliable
+17, 2, fast/slow, reliable
+17, 3, fast/fast, reliable
+17, 4, random, reliable
+18, 1, slow/slow, reliable
+18, 2, fast/slow, lift
+18, 3, fast/fast, reliable
+18, 4, random, reliable
+18, 5, fast/slow, lift
+18, 6, fast/slow, reliable
+19, 1, slow/slow, reliable
+19, 2, fast/slow, reliable
+19, 3, fast/fast, reliable
+19, 4, random, reliable
+19, 5, head_reposition, lift
+20, 1, slow/slow, different_pillow
+20, 2, fast/slow, different_pillow
+20, 3, fast/fast, different_pillow
+20, 4, random, different_pillow
+20, 5, cough, different_pillow
+21, 1, slow/slow, lift
+21, 2, fast/slow, reliable
+21, 3, fast/fast, reliable
+21, 4, shaking, reliable
+21, 5, random, angled_start
+21, 6, random, angled_start
+22, 1, slow/slow, reliable
+22, 2, fast/slow, out_of_frame
+22, 3, fast/fast, reliable
+22, 4, random, reliable
+22, 5, random, angled_start
+22, 6, cough, reliable
+22, 7, random, lift
+23, 1, slow/slow, reliable
+23, 2, fast/slow, reliable
+23, 3, fast/fast, reliable
+23, 4, random, out_of_frame
+23, 5, random, angled_start
+23, 6, random, angled_start
+23, 7, random, reliable           
+23, 8, random, reliable
+24, 1, slow/slow, reliable
+24, 2, fast/slow, reliable
+24, 3, fast/fast, out_of_frame
+24, 4, random, out_of_frame
+24, 5, random, angled_start
+25, 1, slow/slow, reliable
+25, 2, fast/slow, reliable
+25, 3, fast/slow, out_of_frame
+25, 4, random, reliable
+25, 5, random, angled_start 
+25, 6, random, shoulders
+26, 1, slow/slow, reliable
+26, 2, fast/slow, reliable
+26, 3, fast/fast, lift
+26, 4, random, sensor_slipped
+26, 5, random, shoulders
+26, 6, random, lift              
+27, 1, slow/slow, reliable
+27, 2, fast/slow, lift
+27, 3, fast/slow, reliable
+27, 4, fast/fast, pixel_error
+27, 5, random, pixel_error
+27, 6, random, pixel_error
+28, 1, slow/slow, reliable
+28, 2, fast/slow, reliable
+28, 3, fast/fast, out_of_frame
+28, 4, random, reliable
+28, 5, random, angled_start 
