@@ -38,7 +38,25 @@ def sync_trackir_data(
             low_memory=False)
     else:
         sensemat_df = sensemat_filepath.copy()
-        sensemat_df = sensemat_df.iloc[:, [1] + list(range(4, 133))]
+
+    # ------------------------------------------------------------------
+    # Modify SenseMat received times:
+    #   The received times have delays due to the transfer via USB port, 
+    #   but the SenseMat has a build-in board time which extracts data
+    #   every 25ms (40Hz), although this is not in Unix. Therefore we
+    #   use the first received time as starting timestamp, and then each
+    #   iteration of the board time is added to that timestamp to replace
+    #   the other received times. This means the delay between extracting and
+    #   receiving the first timestamp is kept, but all later timestamps are
+    #   accurate with respect to it. Since the TrackIR data also has an arbitrary
+    #   delay, we deem it satisfactory to leave this time delay.
+    # ------------------------------------------------------------------
+    start_unix = sensemat_df["RECV_TIME"].iloc[0]
+    elapsed = ( sensemat_df["B_TIME"]
+            .sub(sensemat_df["B_TIME"].iloc[0])
+            .div(1_000_000))
+    sensemat_df["RECV_TIME"] = start_unix + elapsed
+    sensemat_df = sensemat_df.iloc[:, [1] + list(range(4, 133))] # only keep the RECV_TIME and sensor-value columns
 
     # ------------------------------------------------------------------
     # Load TrackIR
