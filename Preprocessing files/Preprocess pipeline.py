@@ -102,7 +102,7 @@ def preprocess_participant_data(participant_folder):
         print(f"  Step 2-3: Synchronizing TrackIR and SenseMat data...")
         try:
             output_dir = os.path.join("Cleaned data")
-            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir, reset_roll_threshold=0.0001)
+            sync_trackir_data(str(trackir_path), preprocessed_sensemat_df, subject_num, run_num, output_dir, reset_roll_threshold=0.04)
             print(f"    ✓ Data synchronized")
         except Exception as e:
             print(f"    ✗ Error synchronizing data: {e}")
@@ -153,7 +153,7 @@ def log_scale_data():
 def non_log_scale_data():
     """ This function normalizes the cleaned sensemat data located in the folder together with
         the synchronized trackir data. It subtracts the first each row from all rows, and then 
-        each row is divided by the S_mean of that row. 
+        each row is divided by the S_mean of the first row. 
         It saves a csv file with combined processed SenseMat and TrackIR data to "Non-log processed data"
         folder. """
 
@@ -178,7 +178,7 @@ def non_log_scale_data():
                 first_row = sensemat_df.iloc[0,1:129]
                 first_row_mean = first_row.mean()
                 sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129] - first_row # Subtract first row from all rows
-                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129].div(first_row_mean, axis=0) # divide each row by its last-column value
+                sensemat_df.iloc[:,1:129] = sensemat_df.iloc[:,1:129].div(first_row_mean, axis=0) # divide each row by the mean of the first row
                 
                 trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
                 trackir_df = trackir_df.iloc[:,1:]
@@ -195,18 +195,18 @@ if __name__ == "__main__":
     #####################################################################################
     # Uncomment the following if you want to clean all files in the "recordings" folder:
     #####################################################################################
-    for i in range(7,8):
-        participant_folder = f"recordings/pn0{i}"  # Change to your participant folder
-        preprocess_participant_data(participant_folder)    
+    # for i in range(10,29):
+    #     participant_folder = f"recordings/pn{i}"  # Change to your participant folder
+    #     preprocess_participant_data(participant_folder)    
     
     #####################################################################################
     # Uncomment the following if you want to log-preprocess all files in "Cleaned data":
     #####################################################################################
-    log_scale_data()
+    # log_scale_data()
 
     #####################################################################################
     # Uncomment the following if you want to non-log-preprocess all files in "Cleaned data":
     #####################################################################################
-    non_log_scale_data()
+    # non_log_scale_data()
 
     pass
