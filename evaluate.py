@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from dataloader import get_dataloaders
+from dataloader_windowfiltering import get_dataloaders
 from models_guillermo.simple_cnn import SimpleCNN
 from models_guillermo.cnn_lstm import SenseMat_CNN_LSTM
 from models_guillermo.resnet_lstm import SenseMat_ResNet_LSTM
@@ -11,13 +11,13 @@ from models_guillermo.cnn_transformer import SenseMat_CNN_Transformer
 # ==========================================
 # CONFIGURATION
 # ==========================================
-SELECTED_MODEL = "CNN-LSTM" # Options: "SIMPLE-CNN", "CNN-LSTM", "RESNET-LSTM", "TRANSFORMER", "CNN-TRANSFORMER"
-MODEL_WEIGHTS = "saved_models/cnn-lstm_v1.pth"
+SELECTED_MODEL = "SIMPLE-CNN" # Options: "SIMPLE-CNN", "CNN-LSTM", "RESNET-LSTM", "TRANSFORMER", "CNN-TRANSFORMER"
+MODEL_WEIGHTS = "saved_models/simple-cnn_v4.pth"
 DATA_ROOT = ""
 
 def plot_tracking_results(targets, predictions):
     """Generates a visual comparison of True vs Predicted trajectories."""
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharey='row')
     fig.suptitle('TrackIR vs Neural Network Predictions (Unseen Test Data)', fontsize=16)
     
     titles = ['X Position', 'Y Position', 'Z Position', 'Pitch', 'Yaw', 'Roll']
@@ -48,7 +48,10 @@ def main():
         batch_size=32,
         train_ratio=0.70,
         val_ratio=0.15,
-        seed=42
+        seed=26,
+        quality="standard",
+        iqr_multiplier=3.0,
+        debug=False
     )
     
     # 2. Initialize Model and Load Weights
@@ -99,20 +102,63 @@ def main():
     targets_array = np.vstack(all_targets)
     
     # 4. Calculate Clinical Metrics (Mean Absolute Error)
-    # MAE is much easier for humans to interpret than Mean Squared Error
-    mae_per_axis = np.mean(np.abs(predictions_array - targets_array), axis=0)
+    # Calculate the absolute error for every single prediction using your stacked arrays
+    absolute_errors = np.abs(predictions_array - targets_array)
     
-    print("\n=== CLINICAL ACCURACY (Mean Absolute Error) ===")
-    print(f"Position X: {mae_per_axis[0]:.4f}")
-    print(f"Position Y: {mae_per_axis[1]:.4f}")
-    print(f"Position Z: {mae_per_axis[2]:.4f}")
-    print("---")
-    print(f"Rotation Pitch: {mae_per_axis[3]:.4f}")
-    print(f"Rotation Yaw  : {mae_per_axis[4]:.4f}")
-    print(f"Rotation Roll : {mae_per_axis[5]:.4f}")
-    print("===============================================")
+    axis_labels = [
+        "Position X", "Position Y", "Position Z", 
+        "Rotation Pitch", "Rotation Yaw", "Rotation Roll"
+    ]
+    percentiles_to_calc = [50, 75, 90]
+
+    print("\n=== CLINICAL ACCURACY (MAE & Percentiles) ===")
+
+    for i, label in enumerate(axis_labels):
+        # Slice the specific column (0 through 5)
+        column_errors = absolute_errors[:, i]
+        
+        # Calculate MAE
+        mae = np.mean(column_errors)
+        
+        # Calculate the percentiles
+        p_vals = np.percentile(column_errors, percentiles_to_calc)
+        
+        # Print the formatted block
+        print(f"{label}:")
+        print(f"  MAE   : {mae:.4f}")
+        print(f"  P50   : {p_vals[0]:.4f}")
+        print(f"  P75   : {p_vals[1]:.4f}")
+        print(f"  P90   : {p_vals[2]:.4f}")
+        print("-" * 47)
     
-    # 5. Generate Visuals
+    # 5. Calculate Clinical Tolerance Pass Rates
+    print("\n=== CLINICAL ACCURACY (Tolerance Pass Rates) ===")
+    
+    translation_thresholds = [0.5, 1.0, 2.0]  # in cm
+    rotation_thresholds = [10.0, 20.0, 30.0]  # in degrees
+
+    for i, label in enumerate(axis_labels):
+        column_errors = absolute_errors[:, i]
+        
+        print(f"{label}:")
+        
+        # Route the thresholds: X, Y, Z (indices 0, 1, 2) use cm. Pitch, Yaw, Roll use degrees.
+        if i < 3:
+            thresholds = translation_thresholds
+            unit = "cm " # Space added for visual alignment
+        else:
+            thresholds = rotation_thresholds
+            unit = "deg"
+            
+        # Calculate the percentage of predictions that fall UNDER each threshold
+        for t in thresholds:
+            # np.mean() on a boolean array (True/False) calculates the exact proportion of True values
+            pass_rate = np.mean(column_errors <= t) * 100
+            print(f"  ≤ {t:<4} {unit}: {pass_rate:6.2f}%")
+            
+        print("-" * 47)
+
+    # 6. Generate Visuals
     plot_tracking_results(targets_array, predictions_array)
 
 if __name__ == "__main__":

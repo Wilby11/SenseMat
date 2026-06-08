@@ -467,6 +467,44 @@ def _iqr_fence(window_means: np.ndarray, multiplier: float = 1.5) -> Tuple[float
 # Dataset
 # ─────────────────────────────────────────────────────────────────────────────
 
+class LinkedSenseMatAugmentation:
+    """
+    Applies spatial augmentations to the SenseMat pressure grid 
+    AND dynamically recalculates the 6DoF labels to maintain physical truth.
+    """
+    def __init__(self, p_flip=0.5, scale_range=(0.8, 1.2), noise_std=0.05):
+        self.p_flip = p_flip
+        self.scale_range = scale_range
+        self.noise_std = noise_std
+
+    def __call__(self, x, y):
+        # x shape: (W, 16, 8)
+        # y shape: (W, 6) -> [X, Y, Z, Pitch, Yaw, Roll]
+
+        # --- 1. The Linked Spatial Augmentation (Horizontal Flip) ---
+        if torch.rand(1).item() < self.p_flip:
+            # Flip the physical mat horizontally (dimension 2 is the 8 columns)
+            x = torch.flip(x, dims=[2])
+            
+            # Dynamically invert the corresponding physical labels
+            # Index 0: X Position (Left/Right)
+            # Index 4: Yaw (Look Left/Right)
+            # Index 5: Roll (Tilt Left/Right)
+            y[:, 0] = -y[:, 0]
+            y[:, 4] = -y[:, 4]
+            y[:, 5] = -y[:, 5]
+
+        # --- 2. The Safe Physical Augmentations (Always applied randomly) ---
+        # Scale pressure
+        scale_factor = torch.empty(1).uniform_(*self.scale_range).item()
+        x = x * scale_factor
+
+        # Inject noise
+        noise = torch.randn_like(x) * self.noise_std
+        x = x + noise
+
+        return x, y
+
 class SenseMatDataset(Dataset):
     """
     Parameters
@@ -484,8 +522,10 @@ class SenseMatDataset(Dataset):
         y_windows:    np.ndarray,
         meta_vectors: Optional[np.ndarray],
         flat_spatial: bool,
+        transform:    Optional[callable] = None,
     ):
         self.flat_spatial = flat_spatial
+        self.transform = transform
         self.X    = torch.from_numpy(X_windows)    # (N, W, 16, 8)
         self.y    = torch.from_numpy(y_windows)    # (N, W, 6)
         self.meta = (
@@ -497,7 +537,13 @@ class SenseMatDataset(Dataset):
         return len(self.X)
 
     def __getitem__(self, idx):
-        x = self.X[idx]                            # (W, 16, 8)
+        # Use .clone() to prevent contiguous memory warnings during augmentation
+        x = self.X[idx].clone()                        # (W, 16, 8)
+        y = self.y[idx].clone()                        # (W, 16, 8)
+        
+        # Apply the augmentation before any reshaping
+        if self.transform is not None:
+            x, y = self.transform(x, y)
 
         if self.flat_spatial:
             # LSTM / RNN / Transformer: (W, 128)
@@ -507,7 +553,7 @@ class SenseMatDataset(Dataset):
         # add a .permute(0,2,1) in the model's forward() — not done here so
         # that the time axis stays consistent across all model types.
 
-        y = self.y[idx]                            # (W, 6)
+        #y = self.y[idx]                            # (W, 6)
 
         if self.meta is not None:
             return x, self.meta[idx], y
@@ -844,8 +890,8 @@ def get_dataloaders(
         print(f"meta shape (train): {meta_train.shape}")
 
     # ── 6. Build Datasets and DataLoaders ────────────────────────────────────
-    def _make_loader(X, y, meta, shuffle):
-        ds = SenseMatDataset(X, y, meta, flat_spatial=flat_spatial)
+    def _make_loader(X, y, meta, shuffle, transform=None):
+        ds = SenseMatDataset(X, y, meta, flat_spatial=flat_spatial, transform=transform)
         return DataLoader(
             ds,
             batch_size  = batch_size,
@@ -854,9 +900,18 @@ def get_dataloaders(
             pin_memory  = torch.cuda.is_available(),
         )
 
-    train_loader = _make_loader(X_train, y_train, meta_train, shuffle=True)
-    val_loader   = _make_loader(X_val,   y_val,   meta_val,   shuffle=False)
-    test_loader  = _make_loader(X_test,  y_test,  meta_test,  shuffle=False)
+    # Initialize our new augmentation class
+    train_augmenter = LinkedSenseMatAugmentation(p_flip=0.3, scale_range=(0.8, 1.2), noise_std=0.05)
+
+    # Isolate memory
+    X_val_isolated = X_val.copy()
+    y_val_isolated = y_val.copy()
+    X_test_isolated = X_test.copy()
+    y_test_isolated = y_test.copy()
+
+    train_loader = _make_loader(X_train, y_train, meta_train, shuffle=True, transform=train_augmenter)
+    val_loader   = _make_loader(X_val_isolated,   y_val_isolated,   meta_val,   shuffle=False, transform=None)
+    test_loader  = _make_loader(X_test_isolated,  y_test_isolated,  meta_test,  shuffle=False, transform=None)
 
     return train_loader, val_loader, test_loader
 

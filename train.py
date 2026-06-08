@@ -1,6 +1,6 @@
 import torch
 import os
-from dataloader import get_dataloaders
+from dataloader_windowfiltering import get_dataloaders
 from models_guillermo.simple_cnn import SimpleCNN
 from models_guillermo.cnn_lstm import SenseMat_CNN_LSTM
 from models_guillermo.resnet_lstm import SenseMat_ResNet_LSTM
@@ -11,7 +11,7 @@ from models_guillermo.trainer_pytorch import train_pytorch_model
 # ==========================================
 # THE SWITCHBOARD
 # ==========================================
-SELECTED_MODEL = "CNN-LSTM" # Options: "SIMPLE-CNN", "CNN-LSTM", "RESNET-LSTM", "TRANSFORMER", "CNN-TRANSFORMER"
+SELECTED_MODEL = "SIMPLE-CNN" # Options: "SIMPLE-CNN", "CNN-LSTM", "RESNET-LSTM", "TRANSFORMER", "CNN-TRANSFORMER"
 DATA_FOLDER = "" 
 
 def main():
@@ -30,7 +30,10 @@ def main():
         batch_size=32,
         train_ratio=0.70,
         val_ratio=0.15,
-        seed=42
+        seed=42,
+        quality="standard",
+        iqr_multiplier=3.0,
+        debug=False
     )
     
     # 2. Training
@@ -58,14 +61,22 @@ def main():
         optimizer, mode='min', factor=0.5, patience=5
     )
     
+    # Define the path BEFORE training
+    os.makedirs("saved_models", exist_ok=True)
+    save_path = f"saved_models/{SELECTED_MODEL.lower()}_best.pth"
+
     # Run the custom training loop
-    train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, scheduler=scheduler)
+    train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, scheduler=scheduler, save_path=save_path)
     
     # Save the final weights
     os.makedirs("saved_models", exist_ok=True)
-    save_path = f"saved_models/{SELECTED_MODEL.lower()}_v1.pth"
+    save_path = f"saved_models/{SELECTED_MODEL.lower()}_v4.pth"
     torch.save(model.state_dict(), save_path)
     print(f"\n Training Complete. Weights saved to {save_path}")
+
+    # Save the BEST weights
+    best_path = f"saved_models/{SELECTED_MODEL.lower()}_best.pth"
+    print(f"\n Training Complete. Best validation weights safely stored at {best_path}")
 
 if __name__ == "__main__":
     main()
