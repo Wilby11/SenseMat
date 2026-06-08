@@ -17,10 +17,12 @@ def hybrid_6dof_loss(y_pred, y_true, lambda_rot=1.0):
     total_loss = pos_loss + (lambda_rot * rot_loss)
     return total_loss
 
-def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, scheduler=None):
+def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, scheduler=None, save_path=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     
+    best_val_loss = float('inf')
+
     for epoch in range(epochs):
         # --- TRAINING PHASE ---
         model.train()
@@ -62,3 +64,10 @@ def train_pytorch_model(model, train_loader, val_loader, optimizer, epochs=50, s
         # If a scheduler was passed in, tell it to evaluate the new validation loss
         if scheduler is not None:
             scheduler.step(avg_val_loss)
+
+        # Compare current epoch's validation loss to the all-time best
+        if avg_val_loss < best_val_loss and epoch > 10: # Give it 10 epochs to warm up before we start checkpointing
+            best_val_loss = avg_val_loss
+            # Save the file using the path passed from main()
+            torch.save(model.state_dict(), save_path)
+            print(f"  --> [CHECKPOINT] Saved new best weights!")
