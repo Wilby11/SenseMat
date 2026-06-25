@@ -8,8 +8,8 @@ PyTorch DataLoaders ready for CNN / RNN / LSTM / Transformer training.
 Expected repository layout (with example files)
 ---------------------------
 data_root/
-├── Non-log preprocessed data/
-│   └── subject9_run3_non_log_preprocessed.csv
+├── Baseline preprocessed data/
+│   └── subject9_run3_baseline_preprocessed.csv
 ├── Log preprocessed data/
 │   └── subject17_run1_log_preprocessed.csv
 └── recordings/
@@ -127,7 +127,7 @@ META_FIELDS = ["sex", "age", "height", "weight", "head_circumference"]
 def _discover_files(data_root: str, preprocessed: Literal["non_log", "log"]) -> List[Path]:
     """Return sorted list of CSV paths from the chosen preprocessing folder."""
     folder_map = {
-        "non_log": "Non-log preprocessed data",
+        "baseline": "Baseline preprocessed data",
         "log":     "Log preprocessed data",
     }
     folder = Path(data_root) / folder_map[preprocessed]

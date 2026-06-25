@@ -145,7 +145,7 @@ QualityMode = Literal["all", "standard", "conservative", "clean", "reliable"]
 def _discover_files(data_root: str, preprocessed: Literal["non_log", "log"]) -> List[Path]:
     """Return sorted list of CSV paths from the chosen preprocessing folder."""
     folder_map = {
-        "non_log": "Non-log preprocessed data",
+        "baseline": "Baseline preprocessed data",
         "log":     "Log preprocessed data",
     }
     folder = Path(data_root) / folder_map[preprocessed]

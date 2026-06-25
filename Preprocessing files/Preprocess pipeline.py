@@ -150,16 +150,16 @@ def log_scale_data():
 
 ###################################
 
-def non_log_scale_data():
+def baseline_scale_data():
     """ This function normalizes the cleaned sensemat data located in the folder together with
         the synchronized trackir data. It subtracts the first each row from all rows, and then 
         each row is divided by the S_mean of the first row. 
-        It saves a csv file with combined processed SenseMat and TrackIR data to "Non-log processed data"
+        It saves a csv file with combined processed SenseMat and TrackIR data to "Baseline preprocessed data"
         folder. """
 
     folder = Path("Cleaned data")
     pattern = r"subject(\d+)_run(\d+)_(sensemat|trackir)\.csv"
-    output_dir = os.path.join("Non-log preprocessed data")
+    output_dir = os.path.join("Baseline preprocessed data")
 
     # Iterate through all files in the folder "Cleaned data" and for each SenseMat file, it
     # extracts its subject and run number, which are used to load the corresponding TrackIR 
@@ -183,11 +183,11 @@ def non_log_scale_data():
                 trackir_df = pd.read_csv(f"Cleaned data/subject{subject}_run{run}_trackir.csv", sep=";")
                 trackir_df = trackir_df.iloc[:,1:]
                 combined_df = pd.DataFrame(pd.concat((sensemat_df, trackir_df), axis=1))
-                output = os.path.join(output_dir, f"subject{subject}_run{run}_non_log_preprocessed.csv")
+                output = os.path.join(output_dir, f"subject{subject}_run{run}_baseline_preprocessed.csv")
                 combined_df.to_csv(output, sep=",", index=False)
             elif filetype == "trackir":
                 pass
-    print("Done with non-log preprocessing")
+    print("Done with baseline preprocessing")
 
 # Example usage -> In terminal: Python "Preprocessing files/Preprocess pipeline.py"
 if __name__ == "__main__":
@@ -205,8 +205,8 @@ if __name__ == "__main__":
     # log_scale_data()
 
     #####################################################################################
-    # Uncomment the following if you want to non-log-preprocess all files in "Cleaned data":
+    # Uncomment the following if you want to baseline-preprocess all files in "Cleaned data":
     #####################################################################################
-    # non_log_scale_data()
+    baseline_scale_data()
 
     pass

@@ -27,10 +27,10 @@ def Visualization_preprocessing(sensemat_synched_filepath, trackir_synched_filep
     # Rename the timestamp column to a common name
     combined_df.rename(columns={"RECV_TIME": "Timestamp"}, inplace=True)
     # Save the combined DataFrame to a new CSV file
-    combined_df.to_csv("Synched data\\20260422T120945_combined_data.csv", index=False)
+    combined_df.to_csv("visualizing_file", index=False)
 
 
 if __name__ == "__main__":
-    sensemat_synched_filepath = "Synched data\\20260422T120945_sensemat_synched.csv"
-    trackir_synched_filepath = "Synched data\\20260422T120945_trackir_synched.csv"
+    sensemat_synched_filepath = "Cleaned data\\subject28_run1_sensemat.csv"
+    trackir_synched_filepath = "Cleaned data\\subject28_run1_trackir.csv"
     Visualization_preprocessing(sensemat_synched_filepath, trackir_synched_filepath)
