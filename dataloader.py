@@ -30,6 +30,16 @@ Metadata JSON example (not real data, just format)
     "head_circumference": 55.9
 }
 
+All measurements are reliable, except for those with a label (e.g. shoulders, pixel_error, etc).
+This is what every label means:
+
+- different_pillow -> recordings where we used a different pillow due to our subject otherwise not touching the sensemat properly
+- shoulders -> recordings that are flagged with the subject touching the sensemat with their shoulders
+- pixel_error -> recordings during which one pixel gave little to no output; this is due to there being a craving
+- out_of_frame -> recording during which the subject went out of frame, i.e. the TrackIR lost the headclip
+- sensor_slipped -> recording during which the head clip slipped (partially) of the subject's head
+- bounce -> recordings during which the head clip bounced moderately with rapid movements
+
 Input array shape after reconstruction
 ---------------------------------------
 The SenseMat is a physical mat oriented vertically: 16 rows tall x 8 columns wide.
